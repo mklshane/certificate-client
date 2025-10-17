@@ -24,6 +24,10 @@ export default function CSVUploadPage() {
 
       setMessage(res.data.message);
       setColumns(res.data.columns);
+
+      localStorage.setItem("csvFile", res.data.fileName);
+      localStorage.setItem("columns", JSON.stringify(res.data.columns));
+
     } catch (err) {
       setMessage("CSV upload failed");
     }

@@ -23,6 +23,11 @@ export default function UploadTemplatePage() {
       });
       setMessage(res.data.message);
       setPlaceholders(res.data.placeholders);
+
+      
+localStorage.setItem("templateFile", res.data.fileName);
+localStorage.setItem("placeholders", JSON.stringify(res.data.placeholders));
+
     } catch (err) {
       setMessage("Upload failed");
     }
