@@ -3,8 +3,19 @@
 import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import api from "@/lib/api";
 
 enum Step {
@@ -26,15 +37,45 @@ export default function CertificateWizard() {
   const [columns, setColumns] = useState<string[]>([]);
   const [mapping, setMapping] = useState<{ [key: string]: string }>({});
   const [emailColumn, setEmailColumn] = useState("");
+  const [eventName, setEventName] = useState("Certificate Awarding Ceremony");
   const [previewUrl, setPreviewUrl] = useState("");
+  const [emailPreview, setEmailPreview] = useState({
+    subject: "",
+    bodyPreview: "",
+  });
   const [sending, setSending] = useState(false);
   const [sendMessage, setSendMessage] = useState("");
   const [needsGmailReauth, setNeedsGmailReauth] = useState(false);
+  const [previewGenerated, setPreviewGenerated] = useState(false);
 
   // ====== Progress Bar ======
   useEffect(() => {
     setProgress(((step + 1) / 4) * 100);
   }, [step]);
+
+  // ====== Reset Preview ======
+  const resetPreview = () => {
+    setPreviewUrl("");
+    setPreviewGenerated(false);
+    setSendMessage("");
+    setEmailPreview({ subject: "", bodyPreview: "" });
+  };
+
+  // ====== Email Preview ======
+  const previewEmailContent = async () => {
+    if (!Object.values(mapping).every((v) => v) || !emailColumn) return;
+
+    try {
+      const res = await api.post("/api/preview-email", {
+        mapping,
+        emailColumn,
+        eventName,
+      });
+      setEmailPreview(res.data);
+    } catch (err) {
+      console.error("Email preview error:", err);
+    }
+  };
 
   // ====== Upload Template ======
   const handleTemplateUpload = async () => {
@@ -49,7 +90,6 @@ export default function CertificateWizard() {
     setPlaceholders(res.data.placeholders || []);
     localStorage.setItem("templateFile", res.data.fileName);
     localStorage.setItem("placeholders", JSON.stringify(res.data.placeholders));
-
     setStep(Step.CSV);
   };
 
@@ -66,11 +106,10 @@ export default function CertificateWizard() {
     setColumns(res.data.columns || []);
     localStorage.setItem("csvFile", res.data.fileName);
     localStorage.setItem("columns", JSON.stringify(res.data.columns));
-
     setStep(Step.MAPPING);
   };
 
-  // ====== Save Mapping ======
+  // ====== Save Mapping (UPDATED) ======
   const saveMapping = async () => {
     const storedTemplate = localStorage.getItem("templateFile") || "";
     const storedCsv = localStorage.getItem("csvFile") || "";
@@ -80,6 +119,7 @@ export default function CertificateWizard() {
       csvFile: storedCsv,
       mappings: mapping,
       emailColumn,
+      eventName,
     });
 
     setStep(Step.PREVIEW);
@@ -94,29 +134,27 @@ export default function CertificateWizard() {
     const blob = new Blob([res.data], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     setPreviewUrl(url);
+    setPreviewGenerated(true);
   };
 
-  // ====== Clear Auth Tokens & Force Re-auth ======
+  // ====== Clear Auth Tokens ======
   const clearAuthTokensAndReauth = () => {
-    // Clear NextAuth storage
     localStorage.removeItem("next-auth.callbackUrl");
     localStorage.removeItem("next-auth.session-token");
     localStorage.removeItem("__Secure-next-auth.session-token");
-
     setNeedsGmailReauth(false);
     signOut({ callbackUrl: "/certificates" });
   };
 
-  // ====== Send Certificates (Gmail API) ======
+  // ====== Send Certificates (UPDATED) ======
   const sendCertificates = async () => {
     if (!session || !(session as any).accessToken) {
-      alert("Please log in with Google first.");
+      setSendMessage("Please log in with Google first.");
       return;
     }
 
     setSending(true);
     setSendMessage("");
-    setNeedsGmailReauth(false);
 
     try {
       const storedTemplate = localStorage.getItem("templateFile") || "";
@@ -127,6 +165,7 @@ export default function CertificateWizard() {
         csvFile: storedCsv,
         mapping,
         emailColumn,
+        eventName,
         accessToken: (session as any).accessToken,
       });
 
@@ -134,7 +173,6 @@ export default function CertificateWizard() {
     } catch (err: any) {
       console.error("Send certificates error:", err);
 
-      // ✅ Handle Gmail scope errors
       if (
         err?.response?.status === 403 &&
         (err?.response?.data?.includes("insufficientPermissions") ||
@@ -143,7 +181,7 @@ export default function CertificateWizard() {
       ) {
         setNeedsGmailReauth(true);
         setSendMessage(
-          "🔒 Gmail permissions required. Please click 'Re-login with Gmail Access' below."
+          "Gmail permissions required. Please click 'Re-login with Gmail Access' below."
         );
         return;
       }
@@ -157,48 +195,98 @@ export default function CertificateWizard() {
     }
   };
 
-  // ====== Render Wizard Steps ======
+  // ====== Step Titles ======
+  const stepTitles = [
+    {
+      title: "Upload Template",
+      description: "Choose your certificate template (PDF/PPT/PPTX)",
+    },
+    { title: "Upload CSV", description: "Upload recipient data in CSV format" },
+    {
+      title: "Map Fields",
+      description: "Match template placeholders to CSV columns",
+    },
+    {
+      title: "Preview & Send",
+      description: "Review and send personalized certificates",
+    },
+  ];
+
+  // ====== Render Steps ======
   const renderStepContent = () => {
     switch (step) {
       case Step.TEMPLATE:
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload Certificate Template</CardTitle>
+          <Card className="border-0 shadow-xl">
+            <CardHeader className="pb-6">
+              <CardTitle className="text-2xl font-bold">
+                {stepTitles[step].title}
+              </CardTitle>
+              <CardDescription>{stepTitles[step].description}</CardDescription>
             </CardHeader>
             <CardContent>
-              <input
-                type="file"
-                accept=".pdf,.ppt,.pptx"
-                onChange={(e) => setTemplateFile(e.target.files?.[0] || null)}
-                className="mb-4"
-              />
-              <Button onClick={handleTemplateUpload}>Next</Button>
+              <div className="space-y-6">
+                <div className="grid w-full max-w-sm items-center gap-1.5">
+                  <Label htmlFor="template">Certificate Template</Label>
+                  <Input
+                    id="template"
+                    type="file"
+                    accept=".pdf,.ppt,.pptx"
+                    onChange={(e) =>
+                      setTemplateFile(e.target.files?.[0] || null)
+                    }
+                  />
+                </div>
+                <Button
+                  onClick={handleTemplateUpload}
+                  disabled={!templateFile}
+                  className="w-full"
+                  size="lg"
+                >
+                  Continue to CSV Upload
+                </Button>
+              </div>
             </CardContent>
           </Card>
         );
 
       case Step.CSV:
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload CSV Data</CardTitle>
+          <Card className="border-0 shadow-xl">
+            <CardHeader className="pb-6">
+              <CardTitle className="text-2xl font-bold">
+                {stepTitles[step].title}
+              </CardTitle>
+              <CardDescription>{stepTitles[step].description}</CardDescription>
             </CardHeader>
             <CardContent>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                className="mb-4"
-              />
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep(Step.TEMPLATE)}
-                >
-                  Back
-                </Button>
-                <Button onClick={handleCSVUpload}>Next</Button>
+              <div className="space-y-6">
+                <div className="grid w-full max-w-sm items-center gap-1.5">
+                  <Label htmlFor="csv">Recipient Data (CSV)</Label>
+                  <Input
+                    id="csv"
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep(Step.TEMPLATE)}
+                    className="flex-1"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={handleCSVUpload}
+                    disabled={!csvFile}
+                    className="flex-1"
+                    size="lg"
+                  >
+                    Continue to Mapping
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -206,35 +294,66 @@ export default function CertificateWizard() {
 
       case Step.MAPPING:
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Field Mapping</CardTitle>
+          <Card className="border-0 shadow-xl">
+            <CardHeader className="pb-6">
+              <CardTitle className="text-2xl font-bold">
+                {stepTitles[step].title}
+              </CardTitle>
+              <CardDescription>{stepTitles[step].description}</CardDescription>
             </CardHeader>
-            <CardContent>
-              {placeholders.map((ph, idx) => (
-                <div key={idx} className="mb-3">
-                  <label className="block font-medium mb-1">{`<<${ph}>>:`}</label>
-                  <select
-                    className="border p-2 rounded w-full"
-                    onChange={(e) =>
-                      setMapping((prev) => ({ ...prev, [ph]: e.target.value }))
-                    }
-                  >
-                    <option value="">Select column</option>
-                    {columns.map((c, i) => (
-                      <option key={i} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+            <CardContent className="space-y-6">
+              {/* 🎉 EVENT NAME INPUT */}
+              <div className="space-y-2">
+                <Label className="font-medium">Event Name *</Label>
+                <Input
+                  placeholder="e.g., 2024 Graduation Ceremony"
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  className="max-w-sm"
+                />
+                <p className="text-sm text-muted-foreground">
+                  This appears in email subject and body
+                </p>
+              </div>
 
-              <div className="mt-4">
-                <label className="block font-medium mb-1">Email Column:</label>
+              {/* FIELD MAPPINGS */}
+              <div className="space-y-6">
+                {placeholders.map((ph, idx) => (
+                  <div key={idx} className="space-y-2">
+                    <Label className="font-medium">
+                      Template Field:{" "}
+                      <code className="bg-muted px-2 py-1 rounded text-sm font-mono">
+                        {"<<" + ph + ">>"}
+                      </code>
+                    </Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      onChange={(e) =>
+                        setMapping((prev) => ({
+                          ...prev,
+                          [ph]: e.target.value,
+                        }))
+                      }
+                      value={mapping[ph] || ""}
+                    >
+                      <option value="">Select CSV column</option>
+                      {columns.map((c, i) => (
+                        <option key={i} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              {/* EMAIL COLUMN */}
+              <div className="space-y-2">
+                <Label className="font-medium">Email Column *</Label>
                 <select
-                  className="border p-2 rounded w-full"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   onChange={(e) => setEmailColumn(e.target.value)}
+                  value={emailColumn}
                 >
                   <option value="">Select email column</option>
                   {columns.map((c, i) => (
@@ -245,11 +364,26 @@ export default function CertificateWizard() {
                 </select>
               </div>
 
-              <div className="flex gap-2 mt-6">
-                <Button variant="outline" onClick={() => setStep(Step.CSV)}>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setStep(Step.CSV)}
+                  className="flex-1"
+                >
                   Back
                 </Button>
-                <Button onClick={saveMapping}>Next</Button>
+                <Button
+                  onClick={saveMapping}
+                  disabled={
+                    Object.values(mapping).some((v) => !v) ||
+                    !emailColumn ||
+                    !eventName.trim()
+                  }
+                  className="flex-1"
+                  size="lg"
+                >
+                  Continue to Preview
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -257,107 +391,174 @@ export default function CertificateWizard() {
 
       case Step.PREVIEW:
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Preview & Send Certificates</CardTitle>
+          <Card className="border-0 shadow-xl">
+            <CardHeader className="pb-6">
+              <CardTitle className="text-2xl font-bold">
+                {stepTitles[step].title}
+              </CardTitle>
+              <CardDescription>{stepTitles[step].description}</CardDescription>
             </CardHeader>
-            <CardContent>
-              {/* ✅ Gmail Permissions Warning - Using div instead of Alert */}
-              <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-0.5">
-                    <span className="text-amber-500 text-lg">🔒</span>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-amber-800 mb-2">
-                      Gmail Access Required
-                    </h4>
-                    <p className="text-sm text-amber-700 mb-4">
-                      This app needs permission to send emails on your behalf.
-                      If you see permission errors below, click the button to
-                      fix it.
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={clearAuthTokensAndReauth}
-                      className="w-full sm:w-auto"
-                    >
-                      🔄 Re-login with Gmail Access
-                    </Button>
-                  </div>
-                </div>
+            <CardContent className="space-y-6">
+              {/* PDF PREVIEW BUTTONS */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  onClick={generatePreview}
+                  disabled={previewGenerated}
+                  variant={previewGenerated ? "outline" : "default"}
+                  className="flex-1"
+                >
+                  {previewGenerated ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Preview Generated
+                    </>
+                  ) : (
+                    "Generate PDF Preview"
+                  )}
+                </Button>
+                {previewGenerated && (
+                  <Button
+                    onClick={resetPreview}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Generate New Preview
+                  </Button>
+                )}
               </div>
 
-              <div className="mb-4">
-                <Button onClick={generatePreview}>Generate Preview</Button>
-              </div>
+              {/* PDF PREVIEW */}
               {previewUrl && (
-                <iframe
-                  src={previewUrl}
-                  width="100%"
-                  height="400px"
-                  className="border rounded-lg"
-                />
+                <div className="border rounded-lg overflow-hidden shadow-sm">
+                  <iframe
+                    src={previewUrl}
+                    width="100%"
+                    height="500px"
+                    className="w-full"
+                  />
+                </div>
               )}
 
-              <div className="mt-6">
-                <p className="text-sm text-muted-foreground">
-                  📧 Email subject and body will be auto-generated based on your
-                  CSV data.
-                </p>
-              </div>
+              {/* 🎉 EMAIL PREVIEW */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    Email Preview
+                  </CardTitle>
+                  <CardDescription>
+                    This is what recipients will receive
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 p-6">
+                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                    <span className="font-mono text-sm text-muted-foreground">
+                      Subject:
+                    </span>
+                    <span className="font-medium">
+                      {emailPreview.subject || "Click 'Preview Email'"}
+                    </span>
+                  </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 mt-6">
+                  <div className="p-6 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 rounded-lg border border-blue-200/60">
+                    <div className="prose prose-sm max-w-none">
+                      <p className="font-semibold text-base mb-4">
+                        Dear{" "}
+                        <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-sm">
+                          [Name]
+                        </span>
+                        ,
+                      </p>
+                      <p className="text-muted-foreground mb-6 leading-relaxed">
+                        Congratulations on completing the{" "}
+                        <strong className="text-blue-700">{eventName}</strong>!
+                      </p>
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                        <p className="font-semibold text-green-800 mb-2">
+                          📎 Your Certificate is Attached
+                        </p>
+                        <p className="text-sm text-green-700">
+                          Download and save your official certificate
+                        </p>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-6 mb-0 leading-relaxed">
+                        Best regards,
+                        <br />
+                        <span className="font-semibold text-blue-700">
+                          Certificate Wizard Team
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    onClick={previewEmailContent}
+                    className="w-full"
+                    disabled={
+                      !Object.values(mapping).every((v) => v) || !emailColumn
+                    }
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Refresh Email Preview
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* ACTION BUTTONS */}
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   variant="outline"
                   onClick={() => setStep(Step.MAPPING)}
-                  className="w-full sm:w-auto"
+                  className="flex-1"
                 >
-                  ← Back to Mapping
+                  Back to Mapping
                 </Button>
                 <Button
                   onClick={sendCertificates}
-                  disabled={sending || needsGmailReauth}
-                  className="w-full sm:w-auto"
+                  disabled={sending || needsGmailReauth || !previewGenerated}
+                  className="flex-1"
+                  size="lg"
                 >
                   {sending ? (
-                    <span className="flex items-center gap-2">
-                      📤 Sending...
-                    </span>
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white/80 rounded-full animate-spin mr-2" />
+                      Sending Certificates...
+                    </>
                   ) : (
-                    <span className="flex items-center gap-2">
-                      ✉️ Send Certificates
-                    </span>
+                    "Send All Certificates"
                   )}
                 </Button>
               </div>
 
-              {/* ✅ Send Message - Using div instead of Alert */}
+              {/* MESSAGES */}
               {sendMessage && (
-                <div
-                  className={`mt-4 p-4 rounded-lg ${
+                <Alert
+                  className={
                     needsGmailReauth
-                      ? "bg-amber-50 border-2 border-amber-200"
-                      : "bg-green-50 border-2 border-green-200"
-                  }`}
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "border-green-200 bg-green-50 text-green-800"
+                  }
                 >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={`flex-shrink-0 text-lg ${
-                        needsGmailReauth ? "text-amber-500" : "text-green-500"
-                      }`}
-                    >
-                      {needsGmailReauth ? "⚠️" : "✅"}
-                    </span>
-                    <p
-                      className={`text-sm ${
-                        needsGmailReauth ? "text-amber-800" : "text-green-800"
-                      }`}
-                    >
-                      {sendMessage}
-                    </p>
-                  </div>
+                  {needsGmailReauth ? (
+                    <AlertCircle className="h-4 w-4" />
+                  ) : (
+                    <CheckCircle className="h-4 w-4" />
+                  )}
+                  <AlertDescription>{sendMessage}</AlertDescription>
+                </Alert>
+              )}
+
+              {needsGmailReauth && (
+                <div className="p-6 bg-amber-50 border border-amber-200 rounded-lg">
+                  <Button
+                    variant="outline"
+                    onClick={clearAuthTokensAndReauth}
+                    className="w-full"
+                  >
+                    Re-login with Gmail Access
+                  </Button>
                 </div>
               )}
             </CardContent>
@@ -369,76 +570,103 @@ export default function CertificateWizard() {
     }
   };
 
-  // ====== MAIN RETURN ======
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
             Certificate Wizard
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Generate & send personalized certificates in 4 easy steps
+          <p className="max-w-3xl mx-auto text-xl text-muted-foreground">
+            Generate and send personalized certificates in 4 simple steps
           </p>
         </div>
 
         {status === "authenticated" ? (
-          <div className="flex items-center gap-3 bg-card p-3 rounded-lg border">
-            <img
-              src={session?.user?.image ?? ""}
-              alt="Profile"
-              className="w-10 h-10 rounded-full"
-            />
-            <span className="text-sm font-medium max-w-[150px] truncate">
-              {session?.user?.name}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearAuthTokensAndReauth}
-            >
-              🔓 Re-login
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => signOut()}>
-              Logout
-            </Button>
+          <div className="space-y-8">
+            {/* Progress */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-sm border border-white/20">
+              <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Step {step + 1} of 4
+                  </p>
+                  <p className="text-lg font-semibold mt-1">
+                    {stepTitles[step].title}
+                  </p>
+                </div>
+                <Badge variant="secondary" className="text-sm">
+                  {stepTitles[step].description}
+                </Badge>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+
+            {renderStepContent()}
+
+            {/* User Info */}
+            <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-sm">
+              <CardContent className="p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-4">
+                  <img
+                    src={session?.user?.image ?? ""}
+                    alt="Profile"
+                    className="w-12 h-12 rounded-full ring-2 ring-white/50"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold truncate">
+                      {session?.user?.name}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {session?.user?.email}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clearAuthTokensAndReauth}
+                  >
+                    Re-login
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => signOut()}
+                  >
+                    Sign Out
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         ) : (
-          <Button
-            onClick={() => signIn("google", { callbackUrl: "/certificates" })}
-            className="w-full sm:w-auto"
-          >
-            🔐 Login with Google
-          </Button>
+          <Card className="max-w-2xl mx-auto bg-white/80 backdrop-blur-sm shadow-xl border-0">
+            <CardContent className="pt-12 pb-10 text-center">
+              <div className="mx-auto w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-8 shadow-lg">
+                <span className="text-3xl font-bold text-white">🎓</span>
+              </div>
+              <CardTitle className="text-3xl font-bold mb-6">
+                Welcome to Certificate Wizard
+              </CardTitle>
+              <p className="text-muted-foreground mb-8 text-lg leading-relaxed max-w-2xl mx-auto">
+                Log in with Google to start creating and sending personalized
+                certificates to your recipients automatically.
+              </p>
+              <Button
+                size="lg"
+                onClick={() =>
+                  signIn("google", { callbackUrl: "/certificates" })
+                }
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg h-12 text-lg font-semibold"
+              >
+                Get Started with Google
+              </Button>
+            </CardContent>
+          </Card>
         )}
       </div>
-
-      {status === "authenticated" ? (
-        <>
-          <Progress value={progress} className="mb-8 h-2" />
-          {renderStepContent()}
-        </>
-      ) : (
-        <Card className="max-w-2xl mx-auto">
-          <CardContent className="pt-10 text-center">
-            <div className="text-6xl mb-6">🎉</div>
-            <CardTitle className="text-2xl mb-4">
-              Welcome to Certificate Wizard
-            </CardTitle>
-            <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Log in with Google to start creating and sending personalized
-              certificates to your recipients automatically.
-            </p>
-            <Button
-              size="lg"
-              onClick={() => signIn("google", { callbackUrl: "/certificates" })}
-              className="w-full"
-            >
-              🚀 Get Started with Google
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
