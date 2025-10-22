@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -14,10 +15,11 @@ enum Step {
 }
 
 export default function CertificateWizard() {
+  const { data: session, status } = useSession();
   const [step, setStep] = useState<Step>(Step.TEMPLATE);
   const [progress, setProgress] = useState(0);
 
-  // ========== Step Data ==========
+  // ====== Wizard State ======
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [placeholders, setPlaceholders] = useState<string[]>([]);
@@ -25,17 +27,16 @@ export default function CertificateWizard() {
   const [mapping, setMapping] = useState<{ [key: string]: string }>({});
   const [emailColumn, setEmailColumn] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
-
   const [sending, setSending] = useState(false);
   const [sendMessage, setSendMessage] = useState("");
+  const [needsGmailReauth, setNeedsGmailReauth] = useState(false);
 
-  // Update progress bar
+  // ====== Progress Bar ======
   useEffect(() => {
-    setProgress(((step + 1) / 4) * 100); // 4 total steps
+    setProgress(((step + 1) / 4) * 100);
   }, [step]);
 
-  // ========== Step Handlers ==========
-
+  // ====== Upload Template ======
   const handleTemplateUpload = async () => {
     if (!templateFile) return;
     const formData = new FormData();
@@ -52,6 +53,7 @@ export default function CertificateWizard() {
     setStep(Step.CSV);
   };
 
+  // ====== Upload CSV ======
   const handleCSVUpload = async () => {
     if (!csvFile) return;
     const formData = new FormData();
@@ -68,6 +70,7 @@ export default function CertificateWizard() {
     setStep(Step.MAPPING);
   };
 
+  // ====== Save Mapping ======
   const saveMapping = async () => {
     const storedTemplate = localStorage.getItem("templateFile") || "";
     const storedCsv = localStorage.getItem("csvFile") || "";
@@ -82,6 +85,7 @@ export default function CertificateWizard() {
     setStep(Step.PREVIEW);
   };
 
+  // ====== Generate Preview ======
   const generatePreview = async () => {
     const res = await api.get("/api/generate-preview", {
       responseType: "blob",
@@ -92,9 +96,27 @@ export default function CertificateWizard() {
     setPreviewUrl(url);
   };
 
+  // ====== Clear Auth Tokens & Force Re-auth ======
+  const clearAuthTokensAndReauth = () => {
+    // Clear NextAuth storage
+    localStorage.removeItem("next-auth.callbackUrl");
+    localStorage.removeItem("next-auth.session-token");
+    localStorage.removeItem("__Secure-next-auth.session-token");
+
+    setNeedsGmailReauth(false);
+    signOut({ callbackUrl: "/certificates" });
+  };
+
+  // ====== Send Certificates (Gmail API) ======
   const sendCertificates = async () => {
+    if (!session || !(session as any).accessToken) {
+      alert("Please log in with Google first.");
+      return;
+    }
+
     setSending(true);
     setSendMessage("");
+    setNeedsGmailReauth(false);
 
     try {
       const storedTemplate = localStorage.getItem("templateFile") || "";
@@ -105,18 +127,37 @@ export default function CertificateWizard() {
         csvFile: storedCsv,
         mapping,
         emailColumn,
+        accessToken: (session as any).accessToken,
       });
 
       setSendMessage(res.data.message);
     } catch (err: any) {
-      setSendMessage("Failed to send certificates: " + err?.message || err);
+      console.error("Send certificates error:", err);
+
+      // ✅ Handle Gmail scope errors
+      if (
+        err?.response?.status === 403 &&
+        (err?.response?.data?.includes("insufficientPermissions") ||
+          err?.response?.data?.includes("insufficient authentication scopes") ||
+          err?.message?.includes("Gmail permissions missing"))
+      ) {
+        setNeedsGmailReauth(true);
+        setSendMessage(
+          "🔒 Gmail permissions required. Please click 'Re-login with Gmail Access' below."
+        );
+        return;
+      }
+
+      setSendMessage(
+        "Failed to send certificates: " +
+          (err?.response?.data || err?.message || err)
+      );
     } finally {
       setSending(false);
     }
   };
 
-  // ========== UI Render Functions ==========
-
+  // ====== Render Wizard Steps ======
   const renderStepContent = () => {
     switch (step) {
       case Step.TEMPLATE:
@@ -221,30 +262,104 @@ export default function CertificateWizard() {
               <CardTitle>Preview & Send Certificates</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* ✅ Gmail Permissions Warning - Using div instead of Alert */}
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <span className="text-amber-500 text-lg">🔒</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-amber-800 mb-2">
+                      Gmail Access Required
+                    </h4>
+                    <p className="text-sm text-amber-700 mb-4">
+                      This app needs permission to send emails on your behalf.
+                      If you see permission errors below, click the button to
+                      fix it.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearAuthTokensAndReauth}
+                      className="w-full sm:w-auto"
+                    >
+                      🔄 Re-login with Gmail Access
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
               <div className="mb-4">
                 <Button onClick={generatePreview}>Generate Preview</Button>
               </div>
               {previewUrl && (
-                <iframe src={previewUrl} width="100%" height="400px" />
+                <iframe
+                  src={previewUrl}
+                  width="100%"
+                  height="400px"
+                  className="border rounded-lg"
+                />
               )}
 
-              <div className="mt-4">
-                <p className="text-sm">
-                  Email subject and body will be generated automatically based
-                  on the certificate template and data.
+              <div className="mt-6">
+                <p className="text-sm text-muted-foreground">
+                  📧 Email subject and body will be auto-generated based on your
+                  CSV data.
                 </p>
               </div>
 
-              <div className="flex gap-2 mt-4">
-                <Button variant="outline" onClick={() => setStep(Step.MAPPING)}>
-                  Back
+              <div className="flex flex-col sm:flex-row gap-2 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setStep(Step.MAPPING)}
+                  className="w-full sm:w-auto"
+                >
+                  ← Back to Mapping
                 </Button>
-                <Button onClick={sendCertificates} disabled={sending}>
-                  {sending ? "Sending..." : "Send Certificates"}
+                <Button
+                  onClick={sendCertificates}
+                  disabled={sending || needsGmailReauth}
+                  className="w-full sm:w-auto"
+                >
+                  {sending ? (
+                    <span className="flex items-center gap-2">
+                      📤 Sending...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      ✉️ Send Certificates
+                    </span>
+                  )}
                 </Button>
               </div>
 
-              {sendMessage && <p className="mt-3 text-sm">{sendMessage}</p>}
+              {/* ✅ Send Message - Using div instead of Alert */}
+              {sendMessage && (
+                <div
+                  className={`mt-4 p-4 rounded-lg ${
+                    needsGmailReauth
+                      ? "bg-amber-50 border-2 border-amber-200"
+                      : "bg-green-50 border-2 border-green-200"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`flex-shrink-0 text-lg ${
+                        needsGmailReauth ? "text-amber-500" : "text-green-500"
+                      }`}
+                    >
+                      {needsGmailReauth ? "⚠️" : "✅"}
+                    </span>
+                    <p
+                      className={`text-sm ${
+                        needsGmailReauth ? "text-amber-800" : "text-green-800"
+                      }`}
+                    >
+                      {sendMessage}
+                    </p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         );
@@ -254,11 +369,76 @@ export default function CertificateWizard() {
     }
   };
 
+  // ====== MAIN RETURN ======
   return (
-    <div className="p-8 max-w-xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">Certificate Wizard</h1>
-      <Progress value={progress} className="mb-6" />
-      {renderStepContent()}
+    <div className="p-8 max-w-4xl mx-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Certificate Wizard
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Generate & send personalized certificates in 4 easy steps
+          </p>
+        </div>
+
+        {status === "authenticated" ? (
+          <div className="flex items-center gap-3 bg-card p-3 rounded-lg border">
+            <img
+              src={session?.user?.image ?? ""}
+              alt="Profile"
+              className="w-10 h-10 rounded-full"
+            />
+            <span className="text-sm font-medium max-w-[150px] truncate">
+              {session?.user?.name}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearAuthTokensAndReauth}
+            >
+              🔓 Re-login
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => signOut()}>
+              Logout
+            </Button>
+          </div>
+        ) : (
+          <Button
+            onClick={() => signIn("google", { callbackUrl: "/certificates" })}
+            className="w-full sm:w-auto"
+          >
+            🔐 Login with Google
+          </Button>
+        )}
+      </div>
+
+      {status === "authenticated" ? (
+        <>
+          <Progress value={progress} className="mb-8 h-2" />
+          {renderStepContent()}
+        </>
+      ) : (
+        <Card className="max-w-2xl mx-auto">
+          <CardContent className="pt-10 text-center">
+            <div className="text-6xl mb-6">🎉</div>
+            <CardTitle className="text-2xl mb-4">
+              Welcome to Certificate Wizard
+            </CardTitle>
+            <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Log in with Google to start creating and sending personalized
+              certificates to your recipients automatically.
+            </p>
+            <Button
+              size="lg"
+              onClick={() => signIn("google", { callbackUrl: "/certificates" })}
+              className="w-full"
+            >
+              🚀 Get Started with Google
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
