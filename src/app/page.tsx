@@ -30,8 +30,8 @@ export default function CertificateWizard() {
   const [emailColumn, setEmailColumn] = useState("");
   const [eventName, setEventName] = useState("Certificate Awarding Ceremony");
   const [senderName, setSenderName] = useState("");
-  const [emailSubject, setEmailSubject] = useState(""); // NEW: Custom subject
-  const [emailBody, setEmailBody] = useState(""); // NEW: Custom body
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [emailPreview, setEmailPreview] = useState({
     subject: "",
@@ -42,6 +42,11 @@ export default function CertificateWizard() {
   const [needsGmailReauth, setNeedsGmailReauth] = useState(false);
   const [sentEmails, setSentEmails] = useState(false);
   const [previewGenerated, setPreviewGenerated] = useState(false);
+
+  // NEW: Email editing state
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [tempEmailSubject, setTempEmailSubject] = useState("");
+  const [tempEmailBody, setTempEmailBody] = useState("");
 
   // ====== Progress Bar ======
   useEffect(() => {
@@ -70,13 +75,36 @@ export default function CertificateWizard() {
         emailColumn,
         eventName,
         senderName,
-        emailSubject, // NEW
-        emailBody, // NEW
+        emailSubject: isEditingEmail ? tempEmailSubject : emailSubject,
+        emailBody: isEditingEmail ? tempEmailBody : emailBody,
       });
       setEmailPreview(res.data);
     } catch (err) {
       console.error("Email preview error:", err);
     }
+  };
+
+  // ====== Start Editing Email ======
+  const startEditingEmail = () => {
+    setTempEmailSubject(emailSubject);
+    setTempEmailBody(emailBody);
+    setIsEditingEmail(true);
+  };
+
+  // ====== Save Email Edits ======
+  const saveEmailEdits = async () => {
+    setEmailSubject(tempEmailSubject);
+    setEmailBody(tempEmailBody);
+    setIsEditingEmail(false);
+    // Refresh preview with new content
+    await previewEmailContent();
+  };
+
+  // ====== Cancel Email Edits ======
+  const cancelEmailEdits = () => {
+    setIsEditingEmail(false);
+    setTempEmailSubject("");
+    setTempEmailBody("");
   };
 
   // ====== Upload Template ======
@@ -176,8 +204,8 @@ export default function CertificateWizard() {
       emailColumn,
       eventName,
       senderName,
-      emailSubject, // NEW
-      emailBody, // NEW
+      emailSubject,
+      emailBody,
     });
 
     setStep(Step.PREVIEW);
@@ -194,6 +222,9 @@ export default function CertificateWizard() {
       const url = URL.createObjectURL(blob);
       setPreviewUrl(url);
       setPreviewGenerated(true);
+
+      // Generate email preview when PDF is generated
+      await previewEmailContent();
     } catch (err) {
       console.error("Preview generation error:", err);
       setError("Failed to generate preview. Please check your mapping.");
@@ -231,8 +262,8 @@ export default function CertificateWizard() {
         emailColumn,
         eventName,
         senderName,
-        emailSubject, // NEW
-        emailBody, // NEW
+        emailSubject: isEditingEmail ? tempEmailSubject : emailSubject,
+        emailBody: isEditingEmail ? tempEmailBody : emailBody,
         accessToken: (session as any).accessToken,
       });
 
@@ -491,53 +522,6 @@ export default function CertificateWizard() {
                   </p>
                 </div>
 
-                {/* NEW: Email Customization */}
-                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h3 className="font-semibold text-gray-900">
-                    Email Customization (Optional)
-                  </h3>
-
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Email Subject
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      placeholder={`e.g., Your ${eventName} Certificate`}
-                      value={emailSubject}
-                      onChange={(e) => setEmailSubject(e.target.value)}
-                    />
-                    <p className="text-xs text-gray-500">
-                      Use{" "}
-                      <code className="bg-blue-100 px-1 py-0.5 rounded">
-                        {"<<"}placeholder{">>"}
-                      </code>{" "}
-                      to insert dynamic data
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Email Body
-                    </label>
-                    <textarea
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-h-[120px]"
-                      placeholder={`Dear <<name>>,\n\nCongratulations on completing ${eventName}!\n\nYour certificate is attached.\n\nBest regards,\n${senderName}`}
-                      value={emailBody}
-                      onChange={(e) => setEmailBody(e.target.value)}
-                    />
-                    <p className="text-xs text-gray-500">
-                      Use{" "}
-                      <code className="bg-blue-100 px-1 py-0.5 rounded">
-                        {"<<"}placeholder{">>"}
-                      </code>{" "}
-                      for personalization. Signature will be added
-                      automatically.
-                    </p>
-                  </div>
-                </div>
-
                 <div className="grid gap-4">
                   {placeholders.map((ph, idx) => (
                     <div key={idx} className="space-y-2">
@@ -666,34 +650,146 @@ export default function CertificateWizard() {
                     <h3 className="font-semibold text-gray-900">
                       Email Preview
                     </h3>
-                    <Button
-                      onClick={previewEmailContent}
-                      variant="outline"
-                      size="sm"
-                      disabled={
-                        !emailColumn ||
-                        Object.keys(mapping).length === 0 ||
-                        !senderName.trim()
-                      }
-                    >
-                      Refresh Preview
-                    </Button>
+                    <div className="flex gap-2">
+                      {!isEditingEmail ? (
+                        <>
+                          <Button
+                            onClick={previewEmailContent}
+                            variant="outline"
+                            size="sm"
+                            disabled={
+                              !emailColumn ||
+                              Object.keys(mapping).length === 0 ||
+                              !senderName.trim()
+                            }
+                          >
+                            Refresh Preview
+                          </Button>
+                          <Button
+                            onClick={startEditingEmail}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1"
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                            Edit Email
+                          </Button>
+                        </>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={saveEmailEdits}
+                            size="sm"
+                            className="flex items-center gap-1"
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                            Save
+                          </Button>
+                          <Button
+                            onClick={cancelEmailEdits}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1"
+                          >
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                    {/* Email Subject */}
                     <div className="flex items-center justify-between mb-4">
                       <span className="font-mono text-sm text-gray-500">
                         Subject:
                       </span>
-                      <span className="font-medium text-gray-900">
-                        {emailPreview.subject ||
-                          "Your " + eventName + " Certificate"}
-                      </span>
+                      {isEditingEmail ? (
+                        <input
+                          type="text"
+                          className="flex-1 ml-4 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          value={tempEmailSubject}
+                          onChange={(e) => setTempEmailSubject(e.target.value)}
+                          placeholder={`Your ${eventName} Certificate`}
+                        />
+                      ) : (
+                        <span className="font-medium text-gray-900">
+                          {emailPreview.subject ||
+                            "Your " + eventName + " Certificate"}
+                        </span>
+                      )}
                     </div>
+
+                    {/* Email Body */}
                     <div className="bg-white rounded-lg p-6 border border-gray-200">
-                      <div className="space-y-4 text-sm leading-relaxed whitespace-pre-line">
-                        {emailPreview.bodyPreview ||
-                          `Dear [Name],
+                      {isEditingEmail ? (
+                        <div className="space-y-4">
+                          <textarea
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-h-[200px] resize-y"
+                            value={tempEmailBody}
+                            onChange={(e) => setTempEmailBody(e.target.value)}
+                            placeholder={`Dear <<name>>,\n\nCongratulations on completing ${eventName}!\n\nYour certificate is attached.\n\nBest regards,\n${senderName}`}
+                          />
+                          <div className="text-xs text-gray-500">
+                            <p>
+                              <strong>Placeholders you can use:</strong>
+                            </p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {placeholders.map((ph) => (
+                                <code
+                                  key={ph}
+                                  className="bg-blue-100 px-1 py-0.5 rounded text-xs"
+                                >
+                                  {"<<" + ph + ">>"}
+                                </code>
+                              ))}
+                            </div>
+                            <p className="mt-2">
+                              Signature will be automatically added at the end.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4 text-sm leading-relaxed whitespace-pre-line">
+                          {emailPreview.bodyPreview ||
+                            `Dear [Name],
 
 Congratulations on completing the ${eventName}!
 
@@ -705,7 +801,8 @@ Thank you for your participation!
 
 Best regards,
 ${senderName}`}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -736,7 +833,9 @@ ${senderName}`}
                         sending ||
                         needsGmailReauth ||
                         !previewGenerated ||
-                        !senderName.trim()
+                        !senderName.trim() ||
+                        (isEditingEmail &&
+                          (!tempEmailSubject.trim() || !tempEmailBody.trim()))
                       }
                       className="flex-1"
                     >
@@ -829,14 +928,7 @@ ${senderName}`}
                 <span className="text-xs text-gray-500">Active</span>
               </div>
               <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAuthTokensAndReauth}
-                  className="h-8 px-3 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200"
-                >
-                  Re-auth
-                </Button>
+              
                 <Button
                   variant="ghost"
                   size="sm"
