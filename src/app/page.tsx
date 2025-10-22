@@ -3,19 +3,8 @@
 import { useState, useEffect } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, CheckCircle, RotateCcw } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import api from "@/lib/api";
 
 enum Step {
@@ -29,6 +18,8 @@ export default function CertificateWizard() {
   const { data: session, status } = useSession();
   const [step, setStep] = useState<Step>(Step.TEMPLATE);
   const [progress, setProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
 
   // ====== Wizard State ======
   const [templateFile, setTemplateFile] = useState<File | null>(null);
@@ -38,6 +29,9 @@ export default function CertificateWizard() {
   const [mapping, setMapping] = useState<{ [key: string]: string }>({});
   const [emailColumn, setEmailColumn] = useState("");
   const [eventName, setEventName] = useState("Certificate Awarding Ceremony");
+  const [senderName, setSenderName] = useState("");
+  const [emailSubject, setEmailSubject] = useState(""); // NEW: Custom subject
+  const [emailBody, setEmailBody] = useState(""); // NEW: Custom body
   const [previewUrl, setPreviewUrl] = useState("");
   const [emailPreview, setEmailPreview] = useState({
     subject: "",
@@ -46,6 +40,7 @@ export default function CertificateWizard() {
   const [sending, setSending] = useState(false);
   const [sendMessage, setSendMessage] = useState("");
   const [needsGmailReauth, setNeedsGmailReauth] = useState(false);
+  const [sentEmails, setSentEmails] = useState(false);
   const [previewGenerated, setPreviewGenerated] = useState(false);
 
   // ====== Progress Bar ======
@@ -57,19 +52,26 @@ export default function CertificateWizard() {
   const resetPreview = () => {
     setPreviewUrl("");
     setPreviewGenerated(false);
-    setSendMessage("");
     setEmailPreview({ subject: "", bodyPreview: "" });
   };
 
   // ====== Email Preview ======
   const previewEmailContent = async () => {
-    if (!Object.values(mapping).every((v) => v) || !emailColumn) return;
+    if (
+      !Object.values(mapping).every((v) => v) ||
+      !emailColumn ||
+      !senderName.trim()
+    )
+      return;
 
     try {
       const res = await api.post("/api/preview-email", {
         mapping,
         emailColumn,
         eventName,
+        senderName,
+        emailSubject, // NEW
+        emailBody, // NEW
       });
       setEmailPreview(res.data);
     } catch (err) {
@@ -79,37 +81,90 @@ export default function CertificateWizard() {
 
   // ====== Upload Template ======
   const handleTemplateUpload = async () => {
-    if (!templateFile) return;
-    const formData = new FormData();
-    formData.append("file", templateFile);
+    if (!templateFile) {
+      setError("Please select a template file first");
+      return;
+    }
 
-    const res = await api.post("/api/upload-template", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    setUploading(true);
+    setError("");
 
-    setPlaceholders(res.data.placeholders || []);
-    localStorage.setItem("templateFile", res.data.fileName);
-    localStorage.setItem("placeholders", JSON.stringify(res.data.placeholders));
-    setStep(Step.CSV);
+    try {
+      console.log("Uploading template:", templateFile.name);
+
+      const formData = new FormData();
+      formData.append("file", templateFile);
+
+      const res = await api.post("/api/upload-template", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      console.log("Upload response:", res.data);
+
+      if (res.data.placeholders) {
+        setPlaceholders(res.data.placeholders);
+        localStorage.setItem("templateFile", res.data.fileName);
+        localStorage.setItem(
+          "placeholders",
+          JSON.stringify(res.data.placeholders)
+        );
+        setStep(Step.CSV);
+        setError("");
+      } else {
+        setError("No placeholders found in template. Please check your file.");
+      }
+    } catch (err: any) {
+      console.error("Template upload error:", err);
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to upload template. Please try again."
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   // ====== Upload CSV ======
   const handleCSVUpload = async () => {
-    if (!csvFile) return;
-    const formData = new FormData();
-    formData.append("file", csvFile);
+    if (!csvFile) {
+      setError("Please select a CSV file first");
+      return;
+    }
 
-    const res = await api.post("/api/upload-csv", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    setUploading(true);
+    setError("");
 
-    setColumns(res.data.columns || []);
-    localStorage.setItem("csvFile", res.data.fileName);
-    localStorage.setItem("columns", JSON.stringify(res.data.columns));
-    setStep(Step.MAPPING);
+    try {
+      const formData = new FormData();
+      formData.append("file", csvFile);
+
+      const res = await api.post("/api/upload-csv", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (res.data.columns) {
+        setColumns(res.data.columns);
+        localStorage.setItem("csvFile", res.data.fileName);
+        localStorage.setItem("columns", JSON.stringify(res.data.columns));
+        setStep(Step.MAPPING);
+        setError("");
+      } else {
+        setError("No columns found in CSV file. Please check your file.");
+      }
+    } catch (err: any) {
+      console.error("CSV upload error:", err);
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to upload CSV. Please try again."
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
-  // ====== Save Mapping (UPDATED) ======
+  // ====== Save Mapping ======
   const saveMapping = async () => {
     const storedTemplate = localStorage.getItem("templateFile") || "";
     const storedCsv = localStorage.getItem("csvFile") || "";
@@ -120,6 +175,9 @@ export default function CertificateWizard() {
       mappings: mapping,
       emailColumn,
       eventName,
+      senderName,
+      emailSubject, // NEW
+      emailBody, // NEW
     });
 
     setStep(Step.PREVIEW);
@@ -127,34 +185,40 @@ export default function CertificateWizard() {
 
   // ====== Generate Preview ======
   const generatePreview = async () => {
-    const res = await api.get("/api/generate-preview", {
-      responseType: "blob",
-    });
+    try {
+      const res = await api.get("/api/generate-preview", {
+        responseType: "blob",
+      });
 
-    const blob = new Blob([res.data], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    setPreviewUrl(url);
-    setPreviewGenerated(true);
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setPreviewGenerated(true);
+    } catch (err) {
+      console.error("Preview generation error:", err);
+      setError("Failed to generate preview. Please check your mapping.");
+    }
   };
 
-  // ====== Clear Auth Tokens ======
+  // ====== Clear Auth Tokens & Force Re-auth ======
   const clearAuthTokensAndReauth = () => {
     localStorage.removeItem("next-auth.callbackUrl");
     localStorage.removeItem("next-auth.session-token");
     localStorage.removeItem("__Secure-next-auth.session-token");
     setNeedsGmailReauth(false);
-    signOut({ callbackUrl: "/certificates" });
+    signOut({ callbackUrl: "/" });
   };
 
-  // ====== Send Certificates (UPDATED) ======
+  // ====== Send Certificates ======
   const sendCertificates = async () => {
     if (!session || !(session as any).accessToken) {
-      setSendMessage("Please log in with Google first.");
+      alert("Please log in with Google first.");
       return;
     }
 
     setSending(true);
     setSendMessage("");
+    setNeedsGmailReauth(false);
 
     try {
       const storedTemplate = localStorage.getItem("templateFile") || "";
@@ -166,10 +230,14 @@ export default function CertificateWizard() {
         mapping,
         emailColumn,
         eventName,
+        senderName,
+        emailSubject, // NEW
+        emailBody, // NEW
         accessToken: (session as any).accessToken,
       });
 
       setSendMessage(res.data.message);
+      setSentEmails(true);
     } catch (err: any) {
       console.error("Send certificates error:", err);
 
@@ -195,55 +263,102 @@ export default function CertificateWizard() {
     }
   };
 
-  // ====== Step Titles ======
-  const stepTitles = [
-    {
-      title: "Upload Template",
-      description: "Choose your certificate template (PDF/PPT/PPTX)",
-    },
-    { title: "Upload CSV", description: "Upload recipient data in CSV format" },
-    {
-      title: "Map Fields",
-      description: "Match template placeholders to CSV columns",
-    },
-    {
-      title: "Preview & Send",
-      description: "Review and send personalized certificates",
-    },
-  ];
+  // ====== Reset Email State ======
+  const resetEmailState = () => {
+    setSentEmails(false);
+    setSendMessage("");
+  };
 
-  // ====== Render Steps ======
+  // ====== Render Wizard Steps ======
   const renderStepContent = () => {
     switch (step) {
       case Step.TEMPLATE:
         return (
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="pb-6">
-              <CardTitle className="text-2xl font-bold">
-                {stepTitles[step].title}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-semibold text-gray-900">
+                Upload Certificate Template
               </CardTitle>
-              <CardDescription>{stepTitles[step].description}</CardDescription>
+              <p className="text-sm text-gray-600 mt-1">
+                Upload your PDF or PowerPoint certificate template
+              </p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="template">Certificate Template</Label>
-                  <Input
-                    id="template"
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                  <input
                     type="file"
                     accept=".pdf,.ppt,.pptx"
-                    onChange={(e) =>
-                      setTemplateFile(e.target.files?.[0] || null)
-                    }
+                    onChange={(e) => {
+                      setTemplateFile(e.target.files?.[0] || null);
+                      setError("");
+                    }}
+                    className="hidden"
+                    id="template-upload"
                   />
+                  <label
+                    htmlFor="template-upload"
+                    className="cursor-pointer block"
+                  >
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                        <svg
+                          className="w-6 h-6 text-gray-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                          />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">
+                        {templateFile
+                          ? templateFile.name
+                          : "Choose template file"}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        PDF, PPT, or PPTX files
+                      </span>
+                    </div>
+                  </label>
                 </div>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm text-red-800">{error}</p>
+                  </div>
+                )}
+
                 <Button
                   onClick={handleTemplateUpload}
-                  disabled={!templateFile}
+                  disabled={!templateFile || uploading}
                   className="w-full"
-                  size="lg"
                 >
-                  Continue to CSV Upload
+                  {uploading ? (
+                    <span className="flex items-center gap-2">
+                      <svg
+                        className="w-4 h-4 animate-spin"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 2v4m0 12v4m8-10h-4M6 12H2m15.364-7.364l-2.828 2.828M7.464 17.536l-2.828 2.828m0-11.314l2.828 2.828m11.314 0l2.828 2.828"
+                        />
+                      </svg>
+                      Uploading...
+                    </span>
+                  ) : (
+                    "Continue to Data Upload"
+                  )}
                 </Button>
               </div>
             </CardContent>
@@ -252,24 +367,61 @@ export default function CertificateWizard() {
 
       case Step.CSV:
         return (
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="pb-6">
-              <CardTitle className="text-2xl font-bold">
-                {stepTitles[step].title}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-semibold text-gray-900">
+                Upload Recipient Data
               </CardTitle>
-              <CardDescription>{stepTitles[step].description}</CardDescription>
+              <p className="text-sm text-gray-600 mt-1">
+                Upload CSV file containing recipient information
+              </p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="csv">Recipient Data (CSV)</Label>
-                  <Input
-                    id="csv"
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                  <input
                     type="file"
                     accept=".csv"
-                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                    onChange={(e) => {
+                      setCsvFile(e.target.files?.[0] || null);
+                      setError("");
+                    }}
+                    className="hidden"
+                    id="csv-upload"
                   />
+                  <label htmlFor="csv-upload" className="cursor-pointer block">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                        <svg
+                          className="w-6 h-6 text-gray-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">
+                        {csvFile ? csvFile.name : "Choose CSV file"}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        CSV files with recipient data
+                      </span>
+                    </div>
+                  </label>
                 </div>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm text-red-800">{error}</p>
+                  </div>
+                )}
+
                 <div className="flex gap-3">
                   <Button
                     variant="outline"
@@ -280,11 +432,10 @@ export default function CertificateWizard() {
                   </Button>
                   <Button
                     onClick={handleCSVUpload}
-                    disabled={!csvFile}
+                    disabled={!csvFile || uploading}
                     className="flex-1"
-                    size="lg"
                   >
-                    Continue to Mapping
+                    {uploading ? "Uploading..." : "Continue to Field Mapping"}
                   </Button>
                 </div>
               </div>
@@ -294,96 +445,168 @@ export default function CertificateWizard() {
 
       case Step.MAPPING:
         return (
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="pb-6">
-              <CardTitle className="text-2xl font-bold">
-                {stepTitles[step].title}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-semibold text-gray-900">
+                Map Fields
               </CardTitle>
-              <CardDescription>{stepTitles[step].description}</CardDescription>
+              <p className="text-sm text-gray-600 mt-1">
+                Match template placeholders with your CSV columns
+              </p>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* 🎉 EVENT NAME INPUT */}
-              <div className="space-y-2">
-                <Label className="font-medium">Event Name *</Label>
-                <Input
-                  placeholder="e.g., 2024 Graduation Ceremony"
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
-                  className="max-w-sm"
-                />
-                <p className="text-sm text-muted-foreground">
-                  This appears in email subject and body
-                </p>
-              </div>
-
-              {/* FIELD MAPPINGS */}
+            <CardContent>
               <div className="space-y-6">
-                {placeholders.map((ph, idx) => (
-                  <div key={idx} className="space-y-2">
-                    <Label className="font-medium">
-                      Template Field:{" "}
-                      <code className="bg-muted px-2 py-1 rounded text-sm font-mono">
-                        {"<<" + ph + ">>"}
-                      </code>
-                    </Label>
-                    <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      onChange={(e) =>
-                        setMapping((prev) => ({
-                          ...prev,
-                          [ph]: e.target.value,
-                        }))
-                      }
-                      value={mapping[ph] || ""}
-                    >
-                      <option value="">Select CSV column</option>
-                      {columns.map((c, i) => (
-                        <option key={i} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
+                {/* Event Name Input */}
+                <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Event Name *
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
+                    placeholder="e.g., 2024 Graduation Ceremony"
+                    value={eventName}
+                    onChange={(e) => setEventName(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">
+                    This will appear in email subject: "Your [Event Name]
+                    Certificate"
+                  </p>
+                </div>
+
+                {/* Sender Name Input */}
+                <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Your Name (Email Signature) *
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
+                    placeholder="e.g., John Doe"
+                    value={senderName}
+                    onChange={(e) => setSenderName(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">
+                    This appears as "Best regards, [Your Name]" in emails
+                  </p>
+                </div>
+
+                {/* NEW: Email Customization */}
+                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="font-semibold text-gray-900">
+                    Email Customization (Optional)
+                  </h3>
+
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Email Subject
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder={`e.g., Your ${eventName} Certificate`}
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500">
+                      Use{" "}
+                      <code className="bg-blue-100 px-1 py-0.5 rounded">
+                        {"<<"}placeholder{">>"}
+                      </code>{" "}
+                      to insert dynamic data
+                    </p>
                   </div>
-                ))}
-              </div>
 
-              {/* EMAIL COLUMN */}
-              <div className="space-y-2">
-                <Label className="font-medium">Email Column *</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  onChange={(e) => setEmailColumn(e.target.value)}
-                  value={emailColumn}
-                >
-                  <option value="">Select email column</option>
-                  {columns.map((c, i) => (
-                    <option key={i} value={c}>
-                      {c}
-                    </option>
+                  <div className="space-y-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Email Body
+                    </label>
+                    <textarea
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-h-[120px]"
+                      placeholder={`Dear <<name>>,\n\nCongratulations on completing ${eventName}!\n\nYour certificate is attached.\n\nBest regards,\n${senderName}`}
+                      value={emailBody}
+                      onChange={(e) => setEmailBody(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500">
+                      Use{" "}
+                      <code className="bg-blue-100 px-1 py-0.5 rounded">
+                        {"<<"}placeholder{">>"}
+                      </code>{" "}
+                      for personalization. Signature will be added
+                      automatically.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4">
+                  {placeholders.map((ph, idx) => (
+                    <div key={idx} className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Template Field:{" "}
+                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                          {"<<" + ph + ">>"}
+                        </code>
+                      </label>
+                      <select
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
+                        onChange={(e) =>
+                          setMapping((prev) => ({
+                            ...prev,
+                            [ph]: e.target.value,
+                          }))
+                        }
+                        value={mapping[ph] || ""}
+                      >
+                        <option value="">Select column</option>
+                        {columns.map((c, i) => (
+                          <option key={i} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   ))}
-                </select>
-              </div>
+                </div>
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep(Step.CSV)}
-                  className="flex-1"
-                >
-                  Back
-                </Button>
-                <Button
-                  onClick={saveMapping}
-                  disabled={
-                    Object.values(mapping).some((v) => !v) ||
-                    !emailColumn ||
-                    !eventName.trim()
-                  }
-                  className="flex-1"
-                  size="lg"
-                >
-                  Continue to Preview
-                </Button>
+                <div className="border-t pt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Column *
+                  </label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
+                    onChange={(e) => setEmailColumn(e.target.value)}
+                    value={emailColumn}
+                  >
+                    <option value="">Select email column</option>
+                    {columns.map((c, i) => (
+                      <option key={i} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep(Step.CSV)}
+                    className="flex-1"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={saveMapping}
+                    disabled={
+                      !emailColumn ||
+                      Object.keys(mapping).length !== placeholders.length ||
+                      !eventName.trim() ||
+                      !senderName.trim()
+                    }
+                    className="flex-1"
+                  >
+                    Continue to Preview
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -391,176 +614,182 @@ export default function CertificateWizard() {
 
       case Step.PREVIEW:
         return (
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="pb-6">
-              <CardTitle className="text-2xl font-bold">
-                {stepTitles[step].title}
+          <Card className="border-0 shadow-lg">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl font-semibold text-gray-900">
+                Preview & Send Certificates
               </CardTitle>
-              <CardDescription>{stepTitles[step].description}</CardDescription>
+              <p className="text-sm text-gray-600 mt-1">
+                Review your certificate and email preview before sending
+              </p>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {/* PDF PREVIEW BUTTONS */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  onClick={generatePreview}
-                  disabled={previewGenerated}
-                  variant={previewGenerated ? "outline" : "default"}
-                  className="flex-1"
-                >
-                  {previewGenerated ? (
-                    <>
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      Preview Generated
-                    </>
-                  ) : (
-                    "Generate PDF Preview"
-                  )}
-                </Button>
-                {previewGenerated && (
+            <CardContent>
+              <div className="space-y-6">
+                {/* Preview Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button
-                    onClick={resetPreview}
-                    variant="outline"
+                    onClick={generatePreview}
+                    disabled={previewGenerated}
+                    variant={previewGenerated ? "outline" : "default"}
                     className="flex-1"
                   >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Generate New Preview
+                    {previewGenerated
+                      ? "Preview Generated"
+                      : "Generate PDF Preview"}
                   </Button>
-                )}
-              </div>
-
-              {/* PDF PREVIEW */}
-              {previewUrl && (
-                <div className="border rounded-lg overflow-hidden shadow-sm">
-                  <iframe
-                    src={previewUrl}
-                    width="100%"
-                    height="500px"
-                    className="w-full"
-                  />
+                  {previewGenerated && (
+                    <Button
+                      onClick={resetPreview}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Generate New Preview
+                    </Button>
+                  )}
                 </div>
-              )}
 
-              {/* 🎉 EMAIL PREVIEW */}
-              <Card className="border-0 shadow-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    Email Preview
-                  </CardTitle>
-                  <CardDescription>
-                    This is what recipients will receive
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 p-6">
-                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    <span className="font-mono text-sm text-muted-foreground">
-                      Subject:
-                    </span>
-                    <span className="font-medium">
-                      {emailPreview.subject || "Click 'Preview Email'"}
-                    </span>
+                {/* PDF Preview */}
+                {previewUrl && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <iframe
+                      src={previewUrl}
+                      width="100%"
+                      height="500px"
+                      className="border-0"
+                    />
+                  </div>
+                )}
+
+                {/* Email Preview */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-semibold text-gray-900">
+                      Email Preview
+                    </h3>
+                    <Button
+                      onClick={previewEmailContent}
+                      variant="outline"
+                      size="sm"
+                      disabled={
+                        !emailColumn ||
+                        Object.keys(mapping).length === 0 ||
+                        !senderName.trim()
+                      }
+                    >
+                      Refresh Preview
+                    </Button>
                   </div>
 
-                  <div className="p-6 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 rounded-lg border border-blue-200/60">
-                    <div className="prose prose-sm max-w-none">
-                      <p className="font-semibold text-base mb-4">
-                        Dear{" "}
-                        <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-sm">
-                          [Name]
-                        </span>
-                        ,
-                      </p>
-                      <p className="text-muted-foreground mb-6 leading-relaxed">
-                        Congratulations on completing the{" "}
-                        <strong className="text-blue-700">{eventName}</strong>!
-                      </p>
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                        <p className="font-semibold text-green-800 mb-2">
-                          📎 Your Certificate is Attached
-                        </p>
-                        <p className="text-sm text-green-700">
-                          Download and save your official certificate
-                        </p>
+                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="font-mono text-sm text-gray-500">
+                        Subject:
+                      </span>
+                      <span className="font-medium text-gray-900">
+                        {emailPreview.subject ||
+                          "Your " + eventName + " Certificate"}
+                      </span>
+                    </div>
+                    <div className="bg-white rounded-lg p-6 border border-gray-200">
+                      <div className="space-y-4 text-sm leading-relaxed whitespace-pre-line">
+                        {emailPreview.bodyPreview ||
+                          `Dear [Name],
+
+Congratulations on completing the ${eventName}!
+
+Your personalized certificate is attached to this email.
+
+Please download and save it as your official record of achievement.
+
+Thank you for your participation!
+
+Best regards,
+${senderName}`}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-6 mb-0 leading-relaxed">
-                        Best regards,
-                        <br />
-                        <span className="font-semibold text-blue-700">
-                          Certificate Wizard Team
-                        </span>
-                      </p>
                     </div>
                   </div>
-
-                  <Button
-                    variant="outline"
-                    onClick={previewEmailContent}
-                    className="w-full"
-                    disabled={
-                      !Object.values(mapping).every((v) => v) || !emailColumn
-                    }
-                  >
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Refresh Email Preview
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* ACTION BUTTONS */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep(Step.MAPPING)}
-                  className="flex-1"
-                >
-                  Back to Mapping
-                </Button>
-                <Button
-                  onClick={sendCertificates}
-                  disabled={sending || needsGmailReauth || !previewGenerated}
-                  className="flex-1"
-                  size="lg"
-                >
-                  {sending ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/20 border-t-white/80 rounded-full animate-spin mr-2" />
-                      Sending Certificates...
-                    </>
-                  ) : (
-                    "Send All Certificates"
-                  )}
-                </Button>
-              </div>
-
-              {/* MESSAGES */}
-              {sendMessage && (
-                <Alert
-                  className={
-                    needsGmailReauth
-                      ? "border-amber-200 bg-amber-50 text-amber-800"
-                      : "border-green-200 bg-green-50 text-green-800"
-                  }
-                >
-                  {needsGmailReauth ? (
-                    <AlertCircle className="h-4 w-4" />
-                  ) : (
-                    <CheckCircle className="h-4 w-4" />
-                  )}
-                  <AlertDescription>{sendMessage}</AlertDescription>
-                </Alert>
-              )}
-
-              {needsGmailReauth && (
-                <div className="p-6 bg-amber-50 border border-amber-200 rounded-lg">
-                  <Button
-                    variant="outline"
-                    onClick={clearAuthTokensAndReauth}
-                    className="w-full"
-                  >
-                    Re-login with Gmail Access
-                  </Button>
                 </div>
-              )}
+
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-sm text-gray-700">
+                    <strong>Note:</strong> Placeholders like{" "}
+                    <code className="bg-gray-100 px-1 py-0.5 rounded">
+                      {"<<"}name{">>"}
+                    </code>{" "}
+                    will be replaced with actual recipient data when sending.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep(Step.MAPPING)}
+                    className="flex-1"
+                  >
+                    Back to Mapping
+                  </Button>
+
+                  {!sentEmails ? (
+                    <Button
+                      onClick={sendCertificates}
+                      disabled={
+                        sending ||
+                        needsGmailReauth ||
+                        !previewGenerated ||
+                        !senderName.trim()
+                      }
+                      className="flex-1"
+                    >
+                      {sending
+                        ? "Sending Certificates..."
+                        : "Send Certificates"}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={resetEmailState}
+                      className="flex-1 bg-gray-800 hover:bg-gray-900"
+                    >
+                      Send Again
+                    </Button>
+                  )}
+                </div>
+
+                {sendMessage && (
+                  <div
+                    className={`rounded-lg p-4 ${
+                      needsGmailReauth
+                        ? "bg-amber-50 border border-amber-200"
+                        : sentEmails
+                        ? "bg-green-50 border border-green-200"
+                        : "bg-red-50 border border-red-200"
+                    }`}
+                  >
+                    <p
+                      className={`text-sm ${
+                        needsGmailReauth
+                          ? "text-amber-800"
+                          : sentEmails
+                          ? "text-green-800"
+                          : "text-red-800"
+                      }`}
+                    >
+                      {sendMessage}
+                    </p>
+                  </div>
+                )}
+
+                {needsGmailReauth && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <Button
+                      variant="outline"
+                      onClick={clearAuthTokensAndReauth}
+                      className="w-full"
+                    >
+                      Re-login with Gmail Access
+                    </Button>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         );
@@ -570,99 +799,169 @@ export default function CertificateWizard() {
     }
   };
 
+  // ====== MAIN RETURN ======
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-8">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-            Certificate Wizard
-          </h1>
-          <p className="max-w-3xl mx-auto text-xl text-muted-foreground">
-            Generate and send personalized certificates in 4 simple steps
-          </p>
+    <div className="min-h-screen bg-white py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-4">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-light tracking-tight text-gray-900">
+              Certify
+            </h1>
+            <div className="w-16 h-0.5 bg-gray-300"></div>
+            <p className="text-sm text-gray-500 font-light">
+              Generate and send personalized certificates in 4 easy steps
+            </p>
+          </div>
+
+          {status === "authenticated" ? (
+            <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">
+              <img
+                src={session?.user?.image ?? ""}
+                alt="Profile"
+                className="w-9 h-9 rounded-full border border-gray-300"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-gray-900 max-w-[140px] truncate">
+                  {session?.user?.name}
+                </span>
+                <span className="text-xs text-gray-500">Active</span>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAuthTokensAndReauth}
+                  className="h-8 px-3 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200"
+                >
+                  Re-auth
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => signOut()}
+                  className="h-8 px-3 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200"
+                >
+                  Logout
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              onClick={() => signIn("google", { callbackUrl: "/" })}
+              className="w-full sm:w-auto bg-gray-900 text-white hover:bg-gray-800 border-0 px-6 py-2.5 rounded-xl font-medium transition-all duration-200 hover:shadow-md"
+            >
+              <svg className="w-4 h-4 mr-3" viewBox="0 0 24 24">
+                <path
+                  fill="currentColor"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                />
+                <path
+                  fill="currentColor"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                />
+              </svg>
+              Continue with Google
+            </Button>
+          )}
         </div>
 
         {status === "authenticated" ? (
-          <div className="space-y-8">
-            {/* Progress */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 shadow-sm border border-white/20">
-              <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                    Step {step + 1} of 4
-                  </p>
-                  <p className="text-lg font-semibold mt-1">
-                    {stepTitles[step].title}
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-sm">
-                  {stepTitles[step].description}
-                </Badge>
+          <>
+            {/* Progress Section */}
+            <div className="mb-12">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm font-medium text-gray-900">
+                  Progress
+                </span>
+                <span className="text-sm text-gray-500">
+                  {Math.round(progress)}%
+                </span>
               </div>
-              <Progress value={progress} className="h-2" />
+              <Progress value={progress} className="h-2 bg-gray-200" />
+              <div className="flex justify-between text-xs text-gray-500 mt-3">
+                <span
+                  className={
+                    step >= Step.TEMPLATE ? "text-gray-900 font-medium" : ""
+                  }
+                >
+                  Template
+                </span>
+                <span
+                  className={
+                    step >= Step.CSV ? "text-gray-900 font-medium" : ""
+                  }
+                >
+                  Data
+                </span>
+                <span
+                  className={
+                    step >= Step.MAPPING ? "text-gray-900 font-medium" : ""
+                  }
+                >
+                  Mapping
+                </span>
+                <span
+                  className={
+                    step >= Step.PREVIEW ? "text-gray-900 font-medium" : ""
+                  }
+                >
+                  Send
+                </span>
+              </div>
             </div>
 
+            {/* Step Content */}
             {renderStepContent()}
-
-            {/* User Info */}
-            <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-sm">
-              <CardContent className="p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-4">
-                  <img
-                    src={session?.user?.image ?? ""}
-                    alt="Profile"
-                    className="w-12 h-12 rounded-full ring-2 ring-white/50"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold truncate">
-                      {session?.user?.name}
-                    </p>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {session?.user?.email}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={clearAuthTokensAndReauth}
-                  >
-                    Re-login
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => signOut()}
-                  >
-                    Sign Out
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          </>
         ) : (
-          <Card className="max-w-2xl mx-auto bg-white/80 backdrop-blur-sm shadow-xl border-0">
-            <CardContent className="pt-12 pb-10 text-center">
-              <div className="mx-auto w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-8 shadow-lg">
-                <span className="text-3xl font-bold text-white">🎓</span>
-              </div>
-              <CardTitle className="text-3xl font-bold mb-6">
-                Welcome to Certificate Wizard
+          /* Login Card */
+          <Card className="max-w-2xl mx-auto border border-gray-200 bg-white shadow-sm rounded-2xl">
+            <CardContent className="pt-16 pb-16 text-center">
+              <CardTitle className="text-3xl font-light text-gray-900 mb-4 tracking-tight">
+                Certify
               </CardTitle>
-              <p className="text-muted-foreground mb-8 text-lg leading-relaxed max-w-2xl mx-auto">
-                Log in with Google to start creating and sending personalized
-                certificates to your recipients automatically.
+              <p className="text-gray-600 mb-10 max-w-md mx-auto leading-relaxed text-base font-light">
+                Securely create and send personalized certificates to your
+                recipients through Gmail integration.
               </p>
               <Button
                 size="lg"
-                onClick={() =>
-                  signIn("google", { callbackUrl: "/certificates" })
-                }
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg h-12 text-lg font-semibold"
+                onClick={() => signIn("google", { callbackUrl: "/" })}
+                className="bg-gray-900 text-white hover:bg-gray-800 border-0 px-8 py-3.5 rounded-xl text-base font-medium transition-all duration-200 hover:shadow-lg"
               >
+                <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  />
+                </svg>
                 Get Started with Google
               </Button>
+              <div className="mt-8 text-xs text-gray-400">
+                Secure authentication • Gmail integration • Privacy focused
+              </div>
             </CardContent>
           </Card>
         )}
