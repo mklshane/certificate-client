@@ -56,7 +56,7 @@ export default function ProgressSection({
       {/* Desktop Progress Bar */}
       <div className="hidden sm:block bg-gray-200 rounded-full h-2 overflow-hidden">
         <div
-          className="h-full bg-gray-900 rounded-full transition-all duration-500 ease-out"
+          className="h-full bg-lime-400 rounded-full transition-all duration-500 ease-out"
           style={{ width: `${progress}%` }}
         ></div>
       </div>

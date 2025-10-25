@@ -6,18 +6,13 @@ interface CertificateHeaderProps {
   session: any;
 }
 
-export default function CertificateHeader({
-  status,
-  session,
-}: CertificateHeaderProps) {
+export default function CertificateHeader({ status, session }: CertificateHeaderProps) {
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 sm:mb-12 gap-4 sm:gap-6">
       <div className="space-y-2 sm:space-y-3">
         <div className="flex items-center gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              Certify
-            </h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Certify</h1>
             <p className="text-gray-600 text-xs sm:text-sm font-medium">
               Create and send personalized certificates
             </p>

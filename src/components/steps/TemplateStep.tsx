@@ -42,10 +42,7 @@ export default function TemplateStep({
       if (res.data.placeholders) {
         updateState({ placeholders: res.data.placeholders });
         localStorage.setItem("templateFile", res.data.fileName);
-        localStorage.setItem(
-          "placeholders",
-          JSON.stringify(res.data.placeholders)
-        );
+        localStorage.setItem("placeholders", JSON.stringify(res.data.placeholders));
         setStep(1);
         setError("");
       } else {
@@ -64,7 +61,7 @@ export default function TemplateStep({
   };
 
   return (
-    <Card className="border border-gray-200 shadow-sm rounded-lg">
+    <Card className="border border-gray-200 shadow-sm rounded-lg primaryBorder">
       <CardHeader className="pb-4">
         <CardTitle className="text-xl font-semibold text-gray-900">
           Upload Certificate Template
@@ -86,7 +83,10 @@ export default function TemplateStep({
               className="hidden"
               id="template-upload"
             />
-            <label htmlFor="template-upload" className="cursor-pointer block">
+            <label
+              htmlFor="template-upload"
+              className="cursor-pointer block"
+            >
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 sm:p-8 text-center transition-all duration-200 group-hover:border-gray-400 bg-white">
                 <div className="flex flex-col items-center justify-center gap-3">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
@@ -128,7 +128,7 @@ export default function TemplateStep({
           <Button
             onClick={handleTemplateUpload}
             disabled={!state.templateFile || uploading}
-            className="w-full py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors"
+            className="w-full py-3 font-medium bg-lime-300 hover:bg-lime-400 text-black transition-colors primaryBorder"
           >
             {uploading ? (
               <span className="flex items-center gap-2">

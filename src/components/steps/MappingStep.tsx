@@ -44,7 +44,7 @@ export default function MappingStep({
   };
 
   return (
-    <Card className="border border-gray-200 shadow-sm rounded-lg">
+    <Card className="border border-gray-200 shadow-sm rounded-lg primaryBorder">
       <CardHeader className="pb-4">
         <CardTitle className="text-xl font-semibold text-gray-900">
           Map Fields
@@ -136,7 +136,7 @@ export default function MappingStep({
             <Button
               variant="outline"
               onClick={() => setStep(step - 1)}
-              className="flex-1 py-3 font-medium rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex-1 py-3 font-medium rounded-lg text-gray-700 hover:bg-gray-50 transition-colors primaryBorder"
             >
               Back
             </Button>
@@ -148,7 +148,7 @@ export default function MappingStep({
                 !state.eventName.trim() ||
                 !state.senderName.trim()
               }
-              className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50"
+              className="flex-1 py-3 font-medium bg-lime-300 hover:bg-lime-400 text-black transition-colors primaryBorder"
             >
               Continue to Review
             </Button>

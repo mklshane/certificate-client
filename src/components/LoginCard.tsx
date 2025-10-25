@@ -4,7 +4,7 @@ import { Card, CardContent, CardTitle } from "@/components/ui/card";
 
 export default function LoginCard() {
   return (
-    <Card className="max-w-md mx-auto border border-gray-200 shadow-sm rounded-lg">
+    <Card className="max-w-md mx-auto border primaryBorder bg-lime-100">
       <CardContent className="pt-8 sm:pt-12 pb-8 sm:pb-12 text-center">
         <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-900 rounded-xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
           <svg
@@ -33,7 +33,7 @@ export default function LoginCard() {
         <Button
           size="lg"
           onClick={() => signIn("google", { callbackUrl: "/" })}
-          className="bg-white text-gray-900 hover:bg-gray-50 border border-gray-300 px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium text-xs sm:text-sm transition-colors shadow-sm w-full mb-4 sm:mb-6 mx-auto max-w-xs"
+          className="bg-lime-400 text-gray-900 hover:bg-lime-500 px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium primaryBorder text-xs sm:text-sm transition-colors shadow-sm w-full mb-4 sm:mb-6 mx-auto max-w-xs"
         >
           <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" viewBox="0 0 24 24">
             <path

@@ -92,18 +92,12 @@ export default function PreviewStep({
           err?.response?.data?.includes("insufficient authentication scopes") ||
           err?.message?.includes("Gmail permissions missing"))
       ) {
-        updateState({
-          needsGmailReauth: true,
-          sendMessage:
-            "Gmail permissions required. Please re-authenticate with Gmail.",
-        });
+        updateState({ needsGmailReauth: true, sendMessage: "Gmail permissions required. Please re-authenticate with Gmail." });
         return;
       }
 
       updateState({
-        sendMessage:
-          "Failed to send certificates: " +
-          (err?.response?.data || err?.message || err),
+        sendMessage: "Failed to send certificates: " + (err?.response?.data || err?.message || err)
       });
     } finally {
       updateState({ sending: false });
@@ -111,7 +105,7 @@ export default function PreviewStep({
   };
 
   return (
-    <Card className="border border-gray-200 shadow-sm rounded-lg">
+    <Card className="border border-gray-200 shadow-sm rounded-lg primaryBorder">
       <CardHeader className="pb-4">
         <CardTitle className="text-xl font-semibold text-gray-900">
           Review & Send
@@ -128,7 +122,7 @@ export default function PreviewStep({
               onClick={generatePreview}
               disabled={state.previewGenerated}
               variant={state.previewGenerated ? "outline" : "default"}
-              className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors"
+              className="flex-1 py-3 font-medium bg-lime-300 hover:bg-lime-400 text-black transition-colors primaryBorder"
             >
               {state.previewGenerated
                 ? "Preview Generated"
@@ -288,8 +282,8 @@ ${state.senderName}`}
             </div>
           </div>
 
-          <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-            <p className="text-sm text-blue-700">
+          <div className="bg-lime-50 rounded-lg p-4 border border-lime-200">
+            <p className="text-sm text-lime-700">
               <strong>Note:</strong> Placeholders will be replaced with actual
               recipient data when sending.
             </p>
@@ -299,7 +293,7 @@ ${state.senderName}`}
             <Button
               variant="outline"
               onClick={() => setStep(2)}
-              className="flex-1 py-3 font-medium rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex-1 py-3 font-medium rounded-lg primaryBorder text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Back to Mapping
             </Button>
@@ -315,7 +309,7 @@ ${state.senderName}`}
                   (isEditingEmail &&
                     (!tempEmailSubject.trim() || !tempEmailBody.trim()))
                 }
-                className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50"
+                className="flex-1 py-3 font-medium rounded-lg bg-lime-300 hover:bg-lime-400 text-black transition-colors primaryBorder"
               >
                 {state.sending ? (
                   <span className="flex items-center gap-2">

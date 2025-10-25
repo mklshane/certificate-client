@@ -63,7 +63,7 @@ export default function CSVStep({
   };
 
   return (
-    <Card className="border border-gray-200 shadow-sm rounded-lg">
+    <Card className=" shadow-sm rounded-lg primaryBorder">
       <CardHeader className="pb-4">
         <CardTitle className="text-xl font-semibold text-gray-900">
           Upload Recipient Data
@@ -126,14 +126,14 @@ export default function CSVStep({
             <Button
               variant="outline"
               onClick={() => setStep(step - 1)}
-              className="flex-1 py-3 font-medium rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex-1 py-3 font-medium rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors primaryBorder"
             >
               Back
             </Button>
             <Button
               onClick={handleCSVUpload}
               disabled={!state.csvFile || uploading}
-              className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors"
+              className="flex-1 py-3 font-medium bg-lime-300 hover:bg-lime-400 text-black transition-colors primaryBorder"
             >
               {uploading ? "Uploading..." : "Continue to Mapping"}
             </Button>
