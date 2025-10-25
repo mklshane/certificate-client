@@ -21,7 +21,7 @@ export default function CertificateWizard() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
-  // ====== Wizard State ======
+  // Wizard State
   const [templateFile, setTemplateFile] = useState<File | null>(null);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [placeholders, setPlaceholders] = useState<string[]>([]);
@@ -43,24 +43,22 @@ export default function CertificateWizard() {
   const [sentEmails, setSentEmails] = useState(false);
   const [previewGenerated, setPreviewGenerated] = useState(false);
 
-  // NEW: Email editing state
+  // Email editing state
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [tempEmailSubject, setTempEmailSubject] = useState("");
   const [tempEmailBody, setTempEmailBody] = useState("");
 
-  // ====== Progress Bar ======
+  // Progress Bar
   useEffect(() => {
     setProgress(((step + 1) / 4) * 100);
   }, [step]);
 
-  // ====== Reset Preview ======
   const resetPreview = () => {
     setPreviewUrl("");
     setPreviewGenerated(false);
     setEmailPreview({ subject: "", bodyPreview: "" });
   };
 
-  // ====== Email Preview ======
   const previewEmailContent = async () => {
     if (
       !Object.values(mapping).every((v) => v) ||
@@ -84,30 +82,25 @@ export default function CertificateWizard() {
     }
   };
 
-  // ====== Start Editing Email ======
   const startEditingEmail = () => {
     setTempEmailSubject(emailSubject);
     setTempEmailBody(emailBody);
     setIsEditingEmail(true);
   };
 
-  // ====== Save Email Edits ======
   const saveEmailEdits = async () => {
     setEmailSubject(tempEmailSubject);
     setEmailBody(tempEmailBody);
     setIsEditingEmail(false);
-    // Refresh preview with new content
     await previewEmailContent();
   };
 
-  // ====== Cancel Email Edits ======
   const cancelEmailEdits = () => {
     setIsEditingEmail(false);
     setTempEmailSubject("");
     setTempEmailBody("");
   };
 
-  // ====== Upload Template ======
   const handleTemplateUpload = async () => {
     if (!templateFile) {
       setError("Please select a template file first");
@@ -118,16 +111,12 @@ export default function CertificateWizard() {
     setError("");
 
     try {
-      console.log("Uploading template:", templateFile.name);
-
       const formData = new FormData();
       formData.append("file", templateFile);
 
       const res = await api.post("/api/upload-template", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
-      console.log("Upload response:", res.data);
 
       if (res.data.placeholders) {
         setPlaceholders(res.data.placeholders);
@@ -153,7 +142,6 @@ export default function CertificateWizard() {
     }
   };
 
-  // ====== Upload CSV ======
   const handleCSVUpload = async () => {
     if (!csvFile) {
       setError("Please select a CSV file first");
@@ -192,7 +180,6 @@ export default function CertificateWizard() {
     }
   };
 
-  // ====== Save Mapping ======
   const saveMapping = async () => {
     const storedTemplate = localStorage.getItem("templateFile") || "";
     const storedCsv = localStorage.getItem("csvFile") || "";
@@ -211,7 +198,6 @@ export default function CertificateWizard() {
     setStep(Step.PREVIEW);
   };
 
-  // ====== Generate Preview ======
   const generatePreview = async () => {
     try {
       const res = await api.get("/api/generate-preview", {
@@ -223,7 +209,6 @@ export default function CertificateWizard() {
       setPreviewUrl(url);
       setPreviewGenerated(true);
 
-      // Generate email preview when PDF is generated
       await previewEmailContent();
     } catch (err) {
       console.error("Preview generation error:", err);
@@ -231,7 +216,6 @@ export default function CertificateWizard() {
     }
   };
 
-  // ====== Clear Auth Tokens & Force Re-auth ======
   const clearAuthTokensAndReauth = () => {
     localStorage.removeItem("next-auth.callbackUrl");
     localStorage.removeItem("next-auth.session-token");
@@ -240,7 +224,6 @@ export default function CertificateWizard() {
     signOut({ callbackUrl: "/" });
   };
 
-  // ====== Send Certificates ======
   const sendCertificates = async () => {
     if (!session || !(session as any).accessToken) {
       alert("Please log in with Google first.");
@@ -280,7 +263,7 @@ export default function CertificateWizard() {
       ) {
         setNeedsGmailReauth(true);
         setSendMessage(
-          "Gmail permissions required. Please click 'Re-login with Gmail Access' below."
+          "Gmail permissions required. Please re-authenticate with Gmail."
         );
         return;
       }
@@ -294,29 +277,68 @@ export default function CertificateWizard() {
     }
   };
 
-  // ====== Reset Email State ======
   const resetEmailState = () => {
     setSentEmails(false);
     setSendMessage("");
   };
 
-  // ====== Render Wizard Steps ======
+  // Modern Step Indicator
+  const StepIndicator = ({
+    stepNumber,
+    currentStep,
+  }: {
+    stepNumber: number;
+    currentStep: Step;
+  }) => {
+    const isCompleted = step > stepNumber;
+    const isActive = step === stepNumber;
+
+    return (
+      <div className="flex items-center">
+        <div
+          className={`flex items-center justify-center w-8 h-8 rounded-full border-2 text-sm font-medium transition-all duration-300 ${
+            isCompleted
+              ? "bg-gray-900 border-gray-900 text-white"
+              : isActive
+              ? "border-gray-900 bg-white text-gray-900"
+              : "border-gray-300 text-gray-400 bg-white"
+          }`}
+        >
+          {isCompleted ? (
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fillRule="evenodd"
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                clipRule="evenodd"
+              />
+            </svg>
+          ) : (
+            stepNumber + 1
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const stepLabels = ["Template", "Data", "Mapping", "Review"];
+
+  // Render Wizard Steps
   const renderStepContent = () => {
     switch (step) {
       case Step.TEMPLATE:
         return (
-          <Card className="border-0 shadow-lg">
+          <Card className="border border-gray-200 shadow-sm rounded-lg">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 Upload Certificate Template
               </CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Upload your PDF or PowerPoint certificate template
+              <p className="text-gray-600 text-sm">
+                Upload your PDF, PPT, or PPTX certificate template
               </p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+              <div className="space-y-6">
+                <div className="group">
                   <input
                     type="file"
                     accept=".pdf,.ppt,.pptx"
@@ -331,44 +353,48 @@ export default function CertificateWizard() {
                     htmlFor="template-upload"
                     className="cursor-pointer block"
                   >
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
-                        <svg
-                          className="w-6 h-6 text-gray-600"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                          />
-                        </svg>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-all duration-200 group-hover:border-gray-400 bg-white">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                          <svg
+                            className="w-6 h-6 text-gray-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <span className="text-base font-medium text-gray-900 block">
+                            {templateFile
+                              ? templateFile.name
+                              : "Choose template file"}
+                          </span>
+                          <span className="text-gray-500 text-sm">
+                            PDF, PPT, or PPTX files supported
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-sm font-medium text-gray-700">
-                        {templateFile
-                          ? templateFile.name
-                          : "Choose template file"}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        PDF, PPT, or PPTX files
-                      </span>
                     </div>
                   </label>
                 </div>
 
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-sm text-red-800">{error}</p>
+                    <p className="text-red-700 text-sm font-medium">{error}</p>
                   </div>
                 )}
 
                 <Button
                   onClick={handleTemplateUpload}
                   disabled={!templateFile || uploading}
-                  className="w-full"
+                  className="w-full py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors"
                 >
                   {uploading ? (
                     <span className="flex items-center gap-2">
@@ -398,18 +424,18 @@ export default function CertificateWizard() {
 
       case Step.CSV:
         return (
-          <Card className="border-0 shadow-lg">
+          <Card className="border border-gray-200 shadow-sm rounded-lg">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 Upload Recipient Data
               </CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-gray-600 text-sm">
                 Upload CSV file containing recipient information
               </p>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+              <div className="space-y-6">
+                <div className="group">
                   <input
                     type="file"
                     accept=".csv"
@@ -421,35 +447,39 @@ export default function CertificateWizard() {
                     id="csv-upload"
                   />
                   <label htmlFor="csv-upload" className="cursor-pointer block">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
-                        <svg
-                          className="w-6 h-6 text-gray-600"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                          />
-                        </svg>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-all duration-200 group-hover:border-gray-400 bg-white">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                          <svg
+                            className="w-6 h-6 text-gray-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <span className="text-base font-medium text-gray-900 block">
+                            {csvFile ? csvFile.name : "Choose CSV file"}
+                          </span>
+                          <span className="text-gray-500 text-sm">
+                            CSV files with recipient data
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-sm font-medium text-gray-700">
-                        {csvFile ? csvFile.name : "Choose CSV file"}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        CSV files with recipient data
-                      </span>
                     </div>
                   </label>
                 </div>
 
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <p className="text-sm text-red-800">{error}</p>
+                    <p className="text-red-700 text-sm font-medium">{error}</p>
                   </div>
                 )}
 
@@ -457,16 +487,16 @@ export default function CertificateWizard() {
                   <Button
                     variant="outline"
                     onClick={() => setStep(Step.TEMPLATE)}
-                    className="flex-1"
+                    className="flex-1 py-3 font-medium rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     Back
                   </Button>
                   <Button
                     onClick={handleCSVUpload}
                     disabled={!csvFile || uploading}
-                    className="flex-1"
+                    className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors"
                   >
-                    {uploading ? "Uploading..." : "Continue to Field Mapping"}
+                    {uploading ? "Uploading..." : "Continue to Mapping"}
                   </Button>
                 </div>
               </div>
@@ -476,63 +506,62 @@ export default function CertificateWizard() {
 
       case Step.MAPPING:
         return (
-          <Card className="border-0 shadow-lg">
+          <Card className="border border-gray-200 shadow-sm rounded-lg">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
                 Map Fields
               </CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Match template placeholders with your CSV columns
+              <p className="text-gray-600 text-sm">
+                Connect template fields with your data columns
               </p>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
                 {/* Event Name Input */}
-                <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Event Name *
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-900">
+                    Event Name
                   </label>
                   <input
                     type="text"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
                     placeholder="e.g., 2024 Graduation Ceremony"
                     value={eventName}
                     onChange={(e) => setEventName(e.target.value)}
                   />
                   <p className="text-xs text-gray-500">
-                    This will appear in email subject: "Your [Event Name]
-                    Certificate"
+                    This will appear in email subject lines
                   </p>
                 </div>
 
                 {/* Sender Name Input */}
-                <div className="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Your Name (Email Signature) *
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-900">
+                    Your Name
                   </label>
                   <input
                     type="text"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
                     placeholder="e.g., John Doe"
                     value={senderName}
                     onChange={(e) => setSenderName(e.target.value)}
                   />
                   <p className="text-xs text-gray-500">
-                    This appears as "Best regards, [Your Name]" in emails
+                    This appears as the email signature
                   </p>
                 </div>
 
-                <div className="grid gap-4">
+                <div className="space-y-4">
                   {placeholders.map((ph, idx) => (
                     <div key={idx} className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-gray-900">
                         Template Field:{" "}
-                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                        <code className="bg-gray-100 px-2 py-1 rounded text-gray-700 font-mono text-xs">
                           {"<<" + ph + ">>"}
                         </code>
                       </label>
                       <select
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
                         onChange={(e) =>
                           setMapping((prev) => ({
                             ...prev,
@@ -552,12 +581,12 @@ export default function CertificateWizard() {
                   ))}
                 </div>
 
-                <div className="border-t pt-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Column *
+                <div className="border-t border-gray-200 pt-4">
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Email Column
                   </label>
                   <select
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors"
                     onChange={(e) => setEmailColumn(e.target.value)}
                     value={emailColumn}
                   >
@@ -574,7 +603,7 @@ export default function CertificateWizard() {
                   <Button
                     variant="outline"
                     onClick={() => setStep(Step.CSV)}
-                    className="flex-1"
+                    className="flex-1 py-3 font-medium rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     Back
                   </Button>
@@ -586,9 +615,9 @@ export default function CertificateWizard() {
                       !eventName.trim() ||
                       !senderName.trim()
                     }
-                    className="flex-1"
+                    className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50"
                   >
-                    Continue to Preview
+                    Continue to Review
                   </Button>
                 </div>
               </div>
@@ -598,13 +627,13 @@ export default function CertificateWizard() {
 
       case Step.PREVIEW:
         return (
-          <Card className="border-0 shadow-lg">
+          <Card className="border border-gray-200 shadow-sm rounded-lg">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-gray-900">
-                Preview & Send Certificates
+                Review & Send
               </CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Review your certificate and email preview before sending
+              <p className="text-gray-600 text-sm">
+                Preview everything before sending to recipients
               </p>
             </CardHeader>
             <CardContent>
@@ -615,7 +644,7 @@ export default function CertificateWizard() {
                     onClick={generatePreview}
                     disabled={previewGenerated}
                     variant={previewGenerated ? "outline" : "default"}
-                    className="flex-1"
+                    className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors"
                   >
                     {previewGenerated
                       ? "Preview Generated"
@@ -625,7 +654,7 @@ export default function CertificateWizard() {
                     <Button
                       onClick={resetPreview}
                       variant="outline"
-                      className="flex-1"
+                      className="flex-1 py-3 font-medium rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       Generate New Preview
                     </Button>
@@ -634,7 +663,7 @@ export default function CertificateWizard() {
 
                 {/* PDF Preview */}
                 {previewUrl && (
-                  <div className="border rounded-lg overflow-hidden">
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
                     <iframe
                       src={previewUrl}
                       width="100%"
@@ -646,8 +675,8 @@ export default function CertificateWizard() {
 
                 {/* Email Preview */}
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-semibold text-gray-900">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <h3 className="text-lg font-semibold text-gray-900">
                       Email Preview
                     </h3>
                     <div className="flex gap-2">
@@ -662,14 +691,15 @@ export default function CertificateWizard() {
                               Object.keys(mapping).length === 0 ||
                               !senderName.trim()
                             }
+                            className="text-sm font-medium border-gray-300 text-gray-700 hover:bg-gray-50"
                           >
-                            Refresh Preview
+                            Refresh
                           </Button>
                           <Button
                             onClick={startEditingEmail}
                             variant="outline"
                             size="sm"
-                            className="flex items-center gap-1"
+                            className="text-sm font-medium border-gray-300 text-gray-700 hover:bg-gray-50 flex items-center gap-1"
                           >
                             <svg
                               className="w-4 h-4"
@@ -684,7 +714,7 @@ export default function CertificateWizard() {
                                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                               />
                             </svg>
-                            Edit Email
+                            Edit
                           </Button>
                         </>
                       ) : (
@@ -692,42 +722,16 @@ export default function CertificateWizard() {
                           <Button
                             onClick={saveEmailEdits}
                             size="sm"
-                            className="flex items-center gap-1"
+                            className="text-sm font-medium bg-gray-900 hover:bg-gray-800 text-white"
                           >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
                             Save
                           </Button>
                           <Button
                             onClick={cancelEmailEdits}
                             variant="outline"
                             size="sm"
-                            className="flex items-center gap-1"
+                            className="text-sm font-medium border-gray-300 text-gray-700 hover:bg-gray-50"
                           >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                              />
-                            </svg>
                             Cancel
                           </Button>
                         </div>
@@ -735,22 +739,22 @@ export default function CertificateWizard() {
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                     {/* Email Subject */}
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="font-mono text-sm text-gray-500">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
+                      <span className="text-sm font-medium text-gray-700 whitespace-nowrap">
                         Subject:
                       </span>
                       {isEditingEmail ? (
                         <input
                           type="text"
-                          className="flex-1 ml-4 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors w-full"
                           value={tempEmailSubject}
                           onChange={(e) => setTempEmailSubject(e.target.value)}
                           placeholder={`Your ${eventName} Certificate`}
                         />
                       ) : (
-                        <span className="font-medium text-gray-900">
+                        <span className="font-medium text-gray-900 flex-1 text-center sm:text-left">
                           {emailPreview.subject ||
                             "Your " + eventName + " Certificate"}
                         </span>
@@ -758,46 +762,39 @@ export default function CertificateWizard() {
                     </div>
 
                     {/* Email Body */}
-                    <div className="bg-white rounded-lg p-6 border border-gray-200">
+                    <div className="bg-white rounded-lg p-4 border border-gray-300">
                       {isEditingEmail ? (
                         <div className="space-y-4">
                           <textarea
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors min-h-[200px] resize-y"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition-colors min-h-[120px] resize-y"
                             value={tempEmailBody}
                             onChange={(e) => setTempEmailBody(e.target.value)}
                             placeholder={`Dear <<name>>,\n\nCongratulations on completing ${eventName}!\n\nYour certificate is attached.\n\nBest regards,\n${senderName}`}
                           />
-                          <div className="text-xs text-gray-500">
-                            <p>
-                              <strong>Placeholders you can use:</strong>
+                          <div className="bg-gray-100 rounded-lg p-3 border border-gray-200">
+                            <p className="text-sm font-medium text-gray-700 mb-2">
+                              Available placeholders:
                             </p>
-                            <div className="flex flex-wrap gap-1 mt-1">
+                            <div className="flex flex-wrap gap-1">
                               {placeholders.map((ph) => (
                                 <code
                                   key={ph}
-                                  className="bg-blue-100 px-1 py-0.5 rounded text-xs"
+                                  className="bg-white px-2 py-1 rounded border border-gray-300 text-gray-700 font-mono text-xs"
                                 >
                                   {"<<" + ph + ">>"}
                                 </code>
                               ))}
                             </div>
-                            <p className="mt-2">
-                              Signature will be automatically added at the end.
-                            </p>
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-4 text-sm leading-relaxed whitespace-pre-line">
+                        <div className="space-y-3 text-sm leading-relaxed whitespace-pre-line text-gray-700">
                           {emailPreview.bodyPreview ||
                             `Dear [Name],
 
 Congratulations on completing the ${eventName}!
 
 Your personalized certificate is attached to this email.
-
-Please download and save it as your official record of achievement.
-
-Thank you for your participation!
 
 Best regards,
 ${senderName}`}
@@ -807,13 +804,10 @@ ${senderName}`}
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-700">
-                    <strong>Note:</strong> Placeholders like{" "}
-                    <code className="bg-gray-100 px-1 py-0.5 rounded">
-                      {"<<"}name{">>"}
-                    </code>{" "}
-                    will be replaced with actual recipient data when sending.
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <p className="text-sm text-blue-700">
+                    <strong>Note:</strong> Placeholders will be replaced with
+                    actual recipient data when sending.
                   </p>
                 </div>
 
@@ -821,7 +815,7 @@ ${senderName}`}
                   <Button
                     variant="outline"
                     onClick={() => setStep(Step.MAPPING)}
-                    className="flex-1"
+                    className="flex-1 py-3 font-medium rounded-lg border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     Back to Mapping
                   </Button>
@@ -837,16 +831,33 @@ ${senderName}`}
                         (isEditingEmail &&
                           (!tempEmailSubject.trim() || !tempEmailBody.trim()))
                       }
-                      className="flex-1"
+                      className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors disabled:opacity-50"
                     >
-                      {sending
-                        ? "Sending Certificates..."
-                        : "Send Certificates"}
+                      {sending ? (
+                        <span className="flex items-center gap-2">
+                          <svg
+                            className="w-4 h-4 animate-spin"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 2v4m0 12v4m8-10h-4M6 12H2m15.364-7.364l-2.828 2.828M7.464 17.536l-2.828 2.828m0-11.314l2.828 2.828m11.314 0l2.828 2.828"
+                            />
+                          </svg>
+                          Sending...
+                        </span>
+                      ) : (
+                        "Send Certificates"
+                      )}
                     </Button>
                   ) : (
                     <Button
                       onClick={resetEmailState}
-                      className="flex-1 bg-gray-800 hover:bg-gray-900"
+                      className="flex-1 py-3 font-medium rounded-lg bg-gray-900 hover:bg-gray-800 text-white transition-colors"
                     >
                       Send Again
                     </Button>
@@ -855,36 +866,26 @@ ${senderName}`}
 
                 {sendMessage && (
                   <div
-                    className={`rounded-lg p-4 ${
+                    className={`rounded-lg p-4 border text-sm font-medium ${
                       needsGmailReauth
-                        ? "bg-amber-50 border border-amber-200"
+                        ? "bg-yellow-50 border-yellow-200 text-yellow-700"
                         : sentEmails
-                        ? "bg-green-50 border border-green-200"
-                        : "bg-red-50 border border-red-200"
+                        ? "bg-green-50 border-green-200 text-green-700"
+                        : "bg-red-50 border-red-200 text-red-700"
                     }`}
                   >
-                    <p
-                      className={`text-sm ${
-                        needsGmailReauth
-                          ? "text-amber-800"
-                          : sentEmails
-                          ? "text-green-800"
-                          : "text-red-800"
-                      }`}
-                    >
-                      {sendMessage}
-                    </p>
+                    <p>{sendMessage}</p>
                   </div>
                 )}
 
                 {needsGmailReauth && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                     <Button
                       variant="outline"
                       onClick={clearAuthTokensAndReauth}
-                      className="w-full"
+                      className="w-full py-3 font-medium rounded-lg border-yellow-300 text-yellow-700 hover:bg-yellow-100 transition-colors"
                     >
-                      Re-login with Gmail Access
+                      Re-authenticate with Gmail
                     </Button>
                   </div>
                 )}
@@ -898,53 +899,52 @@ ${senderName}`}
     }
   };
 
-  // ====== MAIN RETURN ======
+  // Main Return
   return (
-    <div className="min-h-screen bg-white py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-4">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-light tracking-tight text-gray-900">
-              Certify
-            </h1>
-            <div className="w-16 h-0.5 bg-gray-300"></div>
-            <p className="text-sm text-gray-500 font-light">
-              Generate and send personalized certificates in 4 easy steps
-            </p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+           
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Certify</h1>
+                <p className="text-gray-600 text-sm font-medium">
+                  Create and send personalized certificates
+                </p>
+              </div>
+            </div>
           </div>
 
           {status === "authenticated" ? (
-            <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-200">
+            <div className="flex items-center gap-3 bg-white p-3 rounded-full border border-gray-200 shadow-sm">
               <img
                 src={session?.user?.image ?? ""}
                 alt="Profile"
-                className="w-9 h-9 rounded-full border border-gray-300"
+                className="w-8 h-8 rounded-full"
               />
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-gray-900 max-w-[140px] truncate">
                   {session?.user?.name}
                 </span>
-                <span className="text-xs text-gray-500">Active</span>
+               
               </div>
-              <div className="flex gap-1">
-              
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => signOut()}
-                  className="h-8 px-3 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-200"
-                >
-                  Logout
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => signOut()}
+                className="h-8 px-3 text-sm text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-full font-medium transition-colors"
+              >
+                Logout
+              </Button>
             </div>
           ) : (
             <Button
               onClick={() => signIn("google", { callbackUrl: "/" })}
-              className="w-full sm:w-auto bg-gray-900 text-white hover:bg-gray-800 border-0 px-6 py-2.5 rounded-xl font-medium transition-all duration-200 hover:shadow-md"
+              className="bg-gray-50 text-gray-900 hover:bg-gray-100 border border-gray-300 px-6 py-3 rounded-lg font-medium text-sm transition-colors shadow-sm"
             >
-              <svg className="w-4 h-4 mr-3" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path
                   fill="currentColor"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -970,45 +970,41 @@ ${senderName}`}
         {status === "authenticated" ? (
           <>
             {/* Progress Section */}
-            <div className="mb-12">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-sm font-medium text-gray-900">
-                  Progress
-                </span>
-                <span className="text-sm text-gray-500">
-                  {Math.round(progress)}%
-                </span>
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-8">
+                  {[Step.TEMPLATE, Step.CSV, Step.MAPPING, Step.PREVIEW].map(
+                    (stepNum, index) => (
+                      <div key={stepNum} className="flex items-center gap-8">
+                        <div className="flex items-center gap-3">
+                          <StepIndicator
+                            stepNumber={stepNum}
+                            currentStep={step}
+                          />
+                          <span
+                            className={`text-sm font-medium ${
+                              step >= stepNum
+                                ? "text-gray-900"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            {stepLabels[index]}
+                          </span>
+                        </div>
+                        {index < 3 && (
+                          <div className="w-8 h-0.5 bg-gray-300 rounded-full"></div>
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
               </div>
-              <Progress value={progress} className="h-2 bg-gray-200" />
-              <div className="flex justify-between text-xs text-gray-500 mt-3">
-                <span
-                  className={
-                    step >= Step.TEMPLATE ? "text-gray-900 font-medium" : ""
-                  }
-                >
-                  Template
-                </span>
-                <span
-                  className={
-                    step >= Step.CSV ? "text-gray-900 font-medium" : ""
-                  }
-                >
-                  Data
-                </span>
-                <span
-                  className={
-                    step >= Step.MAPPING ? "text-gray-900 font-medium" : ""
-                  }
-                >
-                  Mapping
-                </span>
-                <span
-                  className={
-                    step >= Step.PREVIEW ? "text-gray-900 font-medium" : ""
-                  }
-                >
-                  Send
-                </span>
+
+              <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-gray-900 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${progress}%` }}
+                ></div>
               </div>
             </div>
 
@@ -1017,19 +1013,36 @@ ${senderName}`}
           </>
         ) : (
           /* Login Card */
-          <Card className="max-w-2xl mx-auto border border-gray-200 bg-white shadow-sm rounded-2xl">
-            <CardContent className="pt-16 pb-16 text-center">
-              <CardTitle className="text-3xl font-light text-gray-900 mb-4 tracking-tight">
+          <Card className="max-w-md mx-auto border border-gray-200 shadow-sm rounded-lg">
+            <CardContent className="pt-12 pb-12 text-center">
+              <div className="w-16 h-16 bg-gray-900 rounded-xl flex items-center justify-center mx-auto mb-6">
+                <svg
+                  className="w-8 h-8 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                  />
+                </svg>
+              </div>
+
+              <CardTitle className="text-2xl font-bold text-gray-900 mb-4">
                 Certify
               </CardTitle>
-              <p className="text-gray-600 mb-10 max-w-md mx-auto leading-relaxed text-base font-light">
-                Securely create and send personalized certificates to your
-                recipients through Gmail integration.
+              <p className="text-gray-600 text-sm mb-8 max-w-sm mx-auto leading-relaxed">
+                Create certificates and send them directly to your
+                recipients through secure Gmail integration.
               </p>
+
               <Button
                 size="lg"
                 onClick={() => signIn("google", { callbackUrl: "/" })}
-                className="bg-gray-900 text-white hover:bg-gray-800 border-0 px-8 py-3.5 rounded-xl text-base font-medium transition-all duration-200 hover:shadow-lg"
+                className="bg-white text-gray-900 hover:bg-gray-50 border border-gray-300 px-8 py-3 rounded-lg font-medium text-sm transition-colors shadow-sm w-full mb-6"
               >
                 <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                   <path
@@ -1051,8 +1064,11 @@ ${senderName}`}
                 </svg>
                 Get Started with Google
               </Button>
-              <div className="mt-8 text-xs text-gray-400">
-                Secure authentication • Gmail integration • Privacy focused
+
+              <div className="flex justify-center items-center gap-4 text-xs text-gray-500 font-medium">
+                <span>Secure authentication</span>
+                <span>•</span>
+                <span>Gmail integration</span>
               </div>
             </CardContent>
           </Card>
