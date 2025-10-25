@@ -282,7 +282,7 @@ export default function CertificateWizard() {
     setSendMessage("");
   };
 
-  // Modern Step Indicator
+  // Modern Step Indicator - Mobile Responsive
   const StepIndicator = ({
     stepNumber,
     currentStep,
@@ -353,11 +353,11 @@ export default function CertificateWizard() {
                     htmlFor="template-upload"
                     className="cursor-pointer block"
                   >
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-all duration-200 group-hover:border-gray-400 bg-white">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 sm:p-8 text-center transition-all duration-200 group-hover:border-gray-400 bg-white">
                       <div className="flex flex-col items-center justify-center gap-3">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
                           <svg
-                            className="w-6 h-6 text-gray-600"
+                            className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -447,11 +447,11 @@ export default function CertificateWizard() {
                     id="csv-upload"
                   />
                   <label htmlFor="csv-upload" className="cursor-pointer block">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-all duration-200 group-hover:border-gray-400 bg-white">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 sm:p-8 text-center transition-all duration-200 group-hover:border-gray-400 bg-white">
                       <div className="flex flex-col items-center justify-center gap-3">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
                           <svg
-                            className="w-6 h-6 text-gray-600"
+                            className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -483,7 +483,7 @@ export default function CertificateWizard() {
                   </div>
                 )}
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     variant="outline"
                     onClick={() => setStep(Step.TEMPLATE)}
@@ -556,7 +556,7 @@ export default function CertificateWizard() {
                     <div key={idx} className="space-y-2">
                       <label className="block text-sm font-medium text-gray-900">
                         Template Field:{" "}
-                        <code className="bg-gray-100 px-2 py-1 rounded text-gray-700 font-mono text-xs">
+                        <code className="bg-gray-100 px-2 py-1 rounded text-gray-700 font-mono text-xs break-all">
                           {"<<" + ph + ">>"}
                         </code>
                       </label>
@@ -599,7 +599,7 @@ export default function CertificateWizard() {
                   </select>
                 </div>
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
                   <Button
                     variant="outline"
                     onClick={() => setStep(Step.CSV)}
@@ -667,8 +667,8 @@ export default function CertificateWizard() {
                     <iframe
                       src={previewUrl}
                       width="100%"
-                      height="500px"
-                      className="border-0"
+                      height="400px"
+                      className="border-0 min-h-[400px]"
                     />
                   </div>
                 )}
@@ -754,7 +754,7 @@ export default function CertificateWizard() {
                           placeholder={`Your ${eventName} Certificate`}
                         />
                       ) : (
-                        <span className="font-medium text-gray-900 flex-1 text-center sm:text-left">
+                        <span className="font-medium text-gray-900 flex-1 text-center sm:text-left break-words">
                           {emailPreview.subject ||
                             "Your " + eventName + " Certificate"}
                         </span>
@@ -779,7 +779,7 @@ export default function CertificateWizard() {
                               {placeholders.map((ph) => (
                                 <code
                                   key={ph}
-                                  className="bg-white px-2 py-1 rounded border border-gray-300 text-gray-700 font-mono text-xs"
+                                  className="bg-white px-2 py-1 rounded border border-gray-300 text-gray-700 font-mono text-xs break-all"
                                 >
                                   {"<<" + ph + ">>"}
                                 </code>
@@ -788,7 +788,7 @@ export default function CertificateWizard() {
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-3 text-sm leading-relaxed whitespace-pre-line text-gray-700">
+                        <div className="space-y-3 text-sm leading-relaxed whitespace-pre-line text-gray-700 break-words">
                           {emailPreview.bodyPreview ||
                             `Dear [Name],
 
@@ -874,7 +874,7 @@ ${senderName}`}
                         : "bg-red-50 border-red-200 text-red-700"
                     }`}
                   >
-                    <p>{sendMessage}</p>
+                    <p className="break-words">{sendMessage}</p>
                   </div>
                 )}
 
@@ -901,16 +901,15 @@ ${senderName}`}
 
   // Main Return
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-4 sm:py-8 px-3 sm:px-4 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-6">
-          <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 sm:mb-12 gap-4 sm:gap-6">
+          <div className="space-y-2 sm:space-y-3">
             <div className="flex items-center gap-3">
-           
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Certify</h1>
-                <p className="text-gray-600 text-sm font-medium">
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Certify</h1>
+                <p className="text-gray-600 text-xs sm:text-sm font-medium">
                   Create and send personalized certificates
                 </p>
               </div>
@@ -918,23 +917,22 @@ ${senderName}`}
           </div>
 
           {status === "authenticated" ? (
-            <div className="flex items-center gap-3 bg-white p-3 rounded-full border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3 bg-white p-2 sm:p-3 rounded-full border border-gray-200 shadow-sm w-full sm:w-auto">
               <img
                 src={session?.user?.image ?? ""}
                 alt="Profile"
-                className="w-8 h-8 rounded-full"
+                className="w-6 h-6 sm:w-8 sm:h-8 rounded-full"
               />
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-gray-900 max-w-[140px] truncate">
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[120px] sm:max-w-[140px]">
                   {session?.user?.name}
                 </span>
-               
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => signOut()}
-                className="h-8 px-3 text-sm text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-full font-medium transition-colors"
+                className="h-6 sm:h-8 px-2 sm:px-3 text-xs sm:text-sm text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-full font-medium transition-colors shrink-0"
               >
                 Logout
               </Button>
@@ -942,9 +940,9 @@ ${senderName}`}
           ) : (
             <Button
               onClick={() => signIn("google", { callbackUrl: "/" })}
-              className="bg-gray-50 text-gray-900 hover:bg-gray-100 border border-gray-300 px-6 py-3 rounded-lg font-medium text-sm transition-colors shadow-sm"
+              className="bg-gray-50 text-gray-900 hover:bg-gray-100 border border-gray-300 px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-medium text-xs sm:text-sm transition-colors shadow-sm w-full sm:w-auto"
             >
-              <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" viewBox="0 0 24 24">
                 <path
                   fill="currentColor"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -969,14 +967,33 @@ ${senderName}`}
 
         {status === "authenticated" ? (
           <>
-            {/* Progress Section */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-8">
+            {/* Progress Section - Mobile Responsive */}
+            <div className="mb-6 sm:mb-8">
+              {/* Mobile Step Indicator */}
+              <div className="sm:hidden mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-gray-900">
+                    Step {step + 1} of 4
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    {stepLabels[step]}
+                  </span>
+                </div>
+                <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full bg-gray-900 rounded-full transition-all duration-500 ease-out"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              {/* Desktop Step Indicator */}
+              <div className="hidden sm:flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4 sm:gap-8">
                   {[Step.TEMPLATE, Step.CSV, Step.MAPPING, Step.PREVIEW].map(
                     (stepNum, index) => (
-                      <div key={stepNum} className="flex items-center gap-8">
-                        <div className="flex items-center gap-3">
+                      <div key={stepNum} className="flex items-center gap-4 sm:gap-8">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           <StepIndicator
                             stepNumber={stepNum}
                             currentStep={step}
@@ -992,7 +1009,7 @@ ${senderName}`}
                           </span>
                         </div>
                         {index < 3 && (
-                          <div className="w-8 h-0.5 bg-gray-300 rounded-full"></div>
+                          <div className="w-4 sm:w-8 h-0.5 bg-gray-300 rounded-full"></div>
                         )}
                       </div>
                     )
@@ -1000,7 +1017,8 @@ ${senderName}`}
                 </div>
               </div>
 
-              <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+              {/* Desktop Progress Bar */}
+              <div className="hidden sm:block bg-gray-200 rounded-full h-2 overflow-hidden">
                 <div
                   className="h-full bg-gray-900 rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${progress}%` }}
@@ -1014,10 +1032,10 @@ ${senderName}`}
         ) : (
           /* Login Card */
           <Card className="max-w-md mx-auto border border-gray-200 shadow-sm rounded-lg">
-            <CardContent className="pt-12 pb-12 text-center">
-              <div className="w-16 h-16 bg-gray-900 rounded-xl flex items-center justify-center mx-auto mb-6">
+            <CardContent className="pt-8 sm:pt-12 pb-8 sm:pb-12 text-center">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-900 rounded-xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
                 <svg
-                  className="w-8 h-8 text-white"
+                  className="w-6 h-6 sm:w-8 sm:h-8 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1031,10 +1049,10 @@ ${senderName}`}
                 </svg>
               </div>
 
-              <CardTitle className="text-2xl font-bold text-gray-900 mb-4">
+              <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">
                 Certify
               </CardTitle>
-              <p className="text-gray-600 text-sm mb-8 max-w-sm mx-auto leading-relaxed">
+              <p className="text-gray-600 text-xs sm:text-sm mb-6 sm:mb-8 max-w-sm mx-auto leading-relaxed px-2 sm:px-0">
                 Create certificates and send them directly to your
                 recipients through secure Gmail integration.
               </p>
@@ -1042,9 +1060,9 @@ ${senderName}`}
               <Button
                 size="lg"
                 onClick={() => signIn("google", { callbackUrl: "/" })}
-                className="bg-white text-gray-900 hover:bg-gray-50 border border-gray-300 px-8 py-3 rounded-lg font-medium text-sm transition-colors shadow-sm w-full mb-6"
+                className="bg-white text-gray-900 hover:bg-gray-50 border border-gray-300 px-6 sm:px-8 py-2 sm:py-3 rounded-lg font-medium text-xs sm:text-sm transition-colors shadow-sm w-full mb-4 sm:mb-6 mx-auto max-w-xs"
               >
-                <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" viewBox="0 0 24 24">
                   <path
                     fill="currentColor"
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -1065,9 +1083,9 @@ ${senderName}`}
                 Get Started with Google
               </Button>
 
-              <div className="flex justify-center items-center gap-4 text-xs text-gray-500 font-medium">
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4 text-xs text-gray-500 font-medium px-2">
                 <span>Secure authentication</span>
-                <span>•</span>
+                <span className="hidden sm:inline">•</span>
                 <span>Gmail integration</span>
               </div>
             </CardContent>
